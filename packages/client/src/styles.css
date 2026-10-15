@@ -449,3 +449,100 @@ footer p {
     animation: none !important;
   }
 }
+
+.prototype-note {
+  max-width: 340px;
+  color: #92a38d;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
+.game-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 68px 25px 10px;
+  background: #142b23;
+  border-bottom: 1px solid #b7cb8d1a;
+}
+.game-hud span {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #c4d79f;
+}
+.game-hud span[data-team="troll"] {
+  color: #d9bd91;
+}
+.game-hud small {
+  display: block;
+  font-size: 8px;
+  color: #9eb190;
+  letter-spacing: 0.12em;
+  margin-top: 6px;
+}
+.game-clock {
+  text-align: right;
+}
+.game-clock strong {
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: #e5e7cb;
+}
+#scene {
+  height: auto;
+  aspect-ratio: 960 / 700;
+}
+#scene canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: manipulation;
+  cursor: crosshair;
+  outline-offset: -3px;
+}
+.scene-heading {
+  pointer-events: none;
+}
+.scene-caption {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+@media (max-width: 760px) {
+  main {
+    display: flex;
+    flex-direction: column;
+  }
+  .intro {
+    width: 100%;
+  }
+  .intro h1 {
+    font-size: 38px;
+    margin: 15px 0;
+  }
+  .intro .description,
+  .factions,
+  .milestones {
+    display: none;
+  }
+  .intro .eyebrow {
+    margin: 0;
+  }
+  .prototype-note {
+    max-width: none;
+    font-size: 10px;
+    margin-bottom: 0;
+  }
+  .connection {
+    margin-bottom: 8px;
+  }
+  .game-hud {
+    padding: 60px 15px 10px;
+  }
+  .scene-caption .eyebrow {
+    font-size: 7px;
+    letter-spacing: 0.09em;
+  }
+  .scene-caption h2 {
+    font-size: 19px;
+  }
+}

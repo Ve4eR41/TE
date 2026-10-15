@@ -2,6 +2,8 @@ import {
   decodeServerMessage,
   PROTOCOL_VERSION,
   type ClientMessage,
+  type Intent,
+  type Snapshot,
   type ServerMessage,
 } from "@troll-vs-elves/shared";
 
@@ -11,7 +13,14 @@ export type ConnectionState =
 export interface ConnectionObserver {
   onState: (state: ConnectionState, detail?: string) => void;
   onLatency: (milliseconds: number) => void;
+  onSnapshot?: (snapshot: Snapshot) => void;
+  onRejection?: (detail: string) => void;
   onWelcome: (message: Extract<ServerMessage, { t: "welcome" }>) => void;
+}
+
+export interface GameConnection {
+  (): void;
+  sendIntent: (intent: Intent) => boolean;
 }
 
 export const getWebSocketUrl = (pageUrl: string): string => {
@@ -23,7 +32,7 @@ export const getWebSocketUrl = (pageUrl: string): string => {
 export const connectToServer = (
   url: string,
   observer: ConnectionObserver,
-): (() => void) => {
+): GameConnection => {
   const socket = new WebSocket(url);
   let finished = false;
   let welcomed = false;
@@ -85,12 +94,26 @@ export const connectToServer = (
     ) {
       observer.onLatency(Math.round(performance.now() - pending.started));
       pending = undefined;
+    } else if (message.t === "snapshot" && welcomed) {
+      observer.onSnapshot?.(message);
+    } else if (
+      message.t === "error" &&
+      (message.code === "INVALID_TARGET" ||
+        message.code === "UNSUPPORTED_INTENT")
+    ) {
+      observer.onRejection?.(
+        message.code === "INVALID_TARGET"
+          ? "Туда не пройти. Выберите свободную точку."
+          : "Это действие пока недоступно.",
+      );
     } else if (message.t === "error") {
       finish(
         "error",
         message.code === "RATE_LIMITED"
           ? "Слишком много запросов. Подключитесь снова."
-          : "Сервер отклонил запрос.",
+          : message.code === "ROOM_FULL"
+            ? "Лес заполнен. Попробуйте позже."
+            : "Сервер отклонил запрос.",
       );
     }
   });
@@ -100,5 +123,19 @@ export const connectToServer = (
   socket.addEventListener("close", () =>
     finish("disconnected", "Соединение закрыто"),
   );
-  return () => finish("disconnected", "Вы отключились от сервера");
+  return Object.assign(() => finish("disconnected", "Вы вышли из леса"), {
+    sendIntent: (intent: Intent): boolean => {
+      if (finished || !welcomed || socket.readyState !== WebSocket.OPEN)
+        return false;
+      sequence += 1;
+      const message: ClientMessage = {
+        v: PROTOCOL_VERSION,
+        t: "intent",
+        requestId: `intent-${sequence}`,
+        intent,
+      };
+      socket.send(JSON.stringify(message));
+      return true;
+    },
+  });
 };

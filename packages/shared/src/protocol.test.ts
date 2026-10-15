@@ -48,6 +48,7 @@ const makeSnapshot = () => ({
 describe("protocol v2", () => {
   it.each([
     { t: "move", x: 1, y: -2 },
+    { t: "steer", x: 1, y: 0 },
     { t: "build", buildingId: "wall", x: 1, y: 2 },
     { t: "hire", unitId: "scout" },
     { t: "upgrade", entityId: "entity" },
@@ -184,4 +185,10 @@ describe("protocol v2", () => {
       ),
     ).toBeNull();
   });
+});
+
+it("rejects steering outside the direction range", () => {
+  expect(intentSchema.safeParse({ t: "steer", x: 2, y: 0 }).success).toBe(
+    false,
+  );
 });

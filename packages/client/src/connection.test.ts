@@ -179,3 +179,48 @@ describe("browser connection lifecycle", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+it("sends intents only while welcomed and dispatches snapshots without predicting", () => {
+  const observer = { ...makeObserver(), onSnapshot: vi.fn() };
+  const connection = connectToServer("ws://test/ws", observer);
+  const socket = latestSocket();
+  expect(connection.sendIntent({ t: "move", x: 260, y: 445 })).toBe(false);
+  socket.receive(welcome());
+  expect(connection.sendIntent({ t: "move", x: 260, y: 445 })).toBe(true);
+  expect(decodeClientMessage(socket.sent.at(-1) ?? "")).toMatchObject({
+    t: "intent",
+    intent: { t: "move", x: 260, y: 445 },
+  });
+  const snapshot = {
+    v: 2,
+    t: "snapshot",
+    tick: 1,
+    entities: [],
+    resources: { gold: 0, wood: 0, rage: 0 },
+    phase: 1,
+    timeLeftSeconds: 1799,
+  };
+  socket.receive(JSON.stringify(snapshot));
+  expect(observer.onSnapshot).toHaveBeenCalledWith(snapshot);
+  connection();
+  expect(connection.sendIntent({ t: "steer", x: 0, y: 0 })).toBe(false);
+});
+
+it("keeps an established connection after a rejected movement target", () => {
+  const observer = { ...makeObserver(), onRejection: vi.fn() };
+  const connection = connectToServer("ws://test/ws", observer);
+  const socket = latestSocket();
+  socket.receive(welcome());
+  socket.receive(
+    JSON.stringify({
+      v: 2,
+      t: "error",
+      code: "INVALID_TARGET",
+      requestId: "move-1",
+    }),
+  );
+  expect(observer.onRejection).toHaveBeenCalledOnce();
+  expect(observer.onState).toHaveBeenLastCalledWith("connected");
+  expect(connection.sendIntent({ t: "move", x: 260, y: 445 })).toBe(true);
+  connection();
+});

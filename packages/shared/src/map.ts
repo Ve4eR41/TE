@@ -78,3 +78,26 @@ export const forestMapSchema = (() =>
         });
     });
   }))();
+
+/** Conservative swept avatar collision, including steps crossing an entire obstacle. */
+export const canWalkSegment = (
+  map: ForestMap,
+  from: Position,
+  to: Position,
+): boolean => {
+  if (!isWalkable(map, from) || !isWalkable(map, to)) return false;
+  return map.obstacles.every((obstacle) => {
+    const rx = obstacle.radiusX + map.avatarRadius;
+    const ry = obstacle.radiusY + map.avatarRadius;
+    const x = (from.x - obstacle.x) / rx;
+    const y = (from.y - obstacle.y) / ry;
+    const dx = (to.x - from.x) / rx;
+    const dy = (to.y - from.y) / ry;
+    const lengthSquared = dx * dx + dy * dy;
+    const t =
+      lengthSquared === 0
+        ? 0
+        : Math.max(0, Math.min(1, -(x * dx + y * dy) / lengthSquared));
+    return (x + dx * t) ** 2 + (y + dy * t) ** 2 >= 1;
+  });
+};

@@ -22,9 +22,18 @@ const match = (() => ({
   tickRateHz: 20,
   phaseStartSeconds: [0, 600, 1200] as [number, number, number],
 }))();
+const units = (() =>
+  ["troll", "elves"].map((id) => ({
+    id,
+    name: id,
+    hp: 100,
+    speedUnitsPerSecond: 100,
+    attackDamage: 0,
+    cost: { gold: 0, wood: 0 },
+  })))();
 describe("match clock", () => {
   it("starts on join, switches at phase boundaries and stops at zero", () => {
-    const room = new MatchRoom(match, makeMap());
+    const room = new MatchRoom(match, makeMap(), units);
     room.advance(600);
     expect(room.snapshot().tick).toBe(0);
     room.join();
@@ -40,7 +49,7 @@ describe("match clock", () => {
     expect(room.snapshot().timeLeftSeconds).toBe(0);
   });
   it("resets when empty and ignores invalid deltas", () => {
-    const room = new MatchRoom(match, makeMap());
+    const room = new MatchRoom(match, makeMap(), units);
     const player = room.join();
     room.advance(30);
     room.advance(NaN);
@@ -52,5 +61,80 @@ describe("match clock", () => {
       phase: 1,
       timeLeftSeconds: 1800,
     });
+  });
+});
+
+describe("authoritative avatars", () => {
+  it("moves only the sender at configured speed without teleporting", () => {
+    const room = new MatchRoom(match, makeMap(), units);
+    const troll = room.join();
+    room.join();
+    const before = room.snapshot().entities;
+    expect(before.map(({ team }) => team)).toEqual(["troll", "elves"]);
+    expect(room.intent(troll, { t: "move", x: 260, y: 445 })).toBeNull();
+    room.advance(0.05);
+    const after = room.snapshot().entities;
+    expect(after[0]?.position.x).toBe(165);
+    expect(after[1]?.position).toEqual(before[1]?.position);
+    room.advance(30);
+    expect(room.snapshot().entities[0]?.position.x).toBe(175);
+    expect(room.intent("intruder", { t: "move", x: 200, y: 445 })).toBe(
+      "INVALID_TARGET",
+    );
+  });
+  it("normalizes diagonal input and expires stale steering", () => {
+    const room = new MatchRoom(match, makeMap(), units);
+    const player = room.join();
+    room.intent(player, { t: "steer", x: 1, y: 1 });
+    room.advance(0.05);
+    const position = room.snapshot().entities[0]?.position;
+    expect(
+      Math.hypot((position?.x ?? 0) - 160, (position?.y ?? 0) - 445),
+    ).toBeCloseTo(5);
+    room.advance(1);
+    expect(room.snapshot().entities[0]?.position).toEqual(position);
+    room.intent(player, { t: "steer", x: 0, y: 0 });
+    room.advance(0.05);
+    expect(room.snapshot().entities[0]?.position).toEqual(position);
+  });
+  it("rejects blocked targets and stops before crossing obstacles", () => {
+    const map = makeMap();
+    map.obstacles = [{ x: 190, y: 445, radiusX: 2, radiusY: 2 }];
+    const room = new MatchRoom(match, map, units);
+    const player = room.join();
+    expect(room.intent(player, { t: "move", x: 190, y: 445 })).toBe(
+      "INVALID_TARGET",
+    );
+    expect(room.intent(player, { t: "move", x: 0, y: 0 })).toBe(
+      "INVALID_TARGET",
+    );
+    room.intent(player, { t: "move", x: 260, y: 445 });
+    for (let i = 0; i < 20; i += 1) room.advance(0.05);
+    expect(room.snapshot().entities[0]?.position.x).toBeLessThan(174);
+  });
+  it("limits capacity, removes avatars and reuses a free spawn", () => {
+    const room = new MatchRoom(match, makeMap(), units);
+    const first = room.join();
+    const second = room.join();
+    expect(() => room.join()).toThrow("Room full");
+    room.leave(first);
+    room.join();
+    expect(room.snapshot().entities.map(({ team }) => team)).toEqual([
+      "elves",
+      "troll",
+    ]);
+    expect(room.snapshot().entities[0]?.ownerId).toBe(second);
+    expect(
+      new Set(room.snapshot().entities.map(({ position }) => position.x)).size,
+    ).toBe(2);
+  });
+  it("freezes movement at the end of the timer", () => {
+    const room = new MatchRoom(match, makeMap(), units);
+    const player = room.join();
+    room.advance(1800);
+    const before = room.snapshot().entities[0]?.position;
+    room.intent(player, { t: "move", x: 260, y: 445 });
+    room.advance(1);
+    expect(room.snapshot().entities[0]?.position).toEqual(before);
   });
 });

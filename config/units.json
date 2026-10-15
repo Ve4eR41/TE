@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "troll",
+    "name": "Тролль (прототип)",
+    "hp": 100,
+    "speedUnitsPerSecond": 145,
+    "attackDamage": 0,
+    "cost": {
+      "gold": 0,
+      "wood": 0
+    }
+  },
+  {
+    "id": "elves",
+    "name": "Эльф (прототип)",
+    "hp": 60,
+    "speedUnitsPerSecond": 180,
+    "attackDamage": 0,
+    "cost": {
+      "gold": 0,
+      "wood": 0
+    }
+  }
+]

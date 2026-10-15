@@ -23,7 +23,11 @@ export interface GameServerOptions {
 }
 
 export const startGameServer = async (options: GameServerOptions) => {
-  const room = new MatchRoom(options.config.match, options.map);
+  const room = new MatchRoom(
+    options.config.match,
+    options.map,
+    options.config.units,
+  );
   const httpServer = createServer((request, response) => {
     if (request.method === "GET" && request.url === "/health") {
       response.writeHead(200, {
@@ -54,6 +58,14 @@ export const startGameServer = async (options: GameServerOptions) => {
   });
   const subscribers = new Map<string, (message: ServerMessage) => void>();
   sockets.on("connection", (socket) => {
+    if (room.size >= room.map.spawns.length) {
+      socket.on("error", () => undefined);
+      socket.send(
+        JSON.stringify({ v: PROTOCOL_VERSION, t: "error", code: "ROOM_FULL" }),
+      );
+      socket.close(SOCKET_CLOSE.policyViolation);
+      return;
+    }
     const playerId = room.join();
     let windowStart = performance.now();
     let received = 0;
@@ -100,12 +112,14 @@ export const startGameServer = async (options: GameServerOptions) => {
       } else if (message.t === "ping") {
         send({ v: PROTOCOL_VERSION, t: "pong", requestId: message.requestId });
       } else {
-        send({
-          v: PROTOCOL_VERSION,
-          t: "error",
-          code: "UNSUPPORTED_INTENT",
-          requestId: message.requestId,
-        });
+        const code = room.intent(playerId, message.intent);
+        if (code)
+          send({
+            v: PROTOCOL_VERSION,
+            t: "error",
+            code,
+            requestId: message.requestId,
+          });
       }
     });
     send(room.welcome(playerId));

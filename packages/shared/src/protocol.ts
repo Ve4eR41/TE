@@ -23,6 +23,11 @@ export const intentSchema = (() =>
   z.discriminatedUnion("t", [
     z.strictObject({ t: z.literal("move"), ...coordinates }),
     z.strictObject({
+      t: z.literal("steer"),
+      x: z.number().finite().min(-1).max(1),
+      y: z.number().finite().min(-1).max(1),
+    }),
+    z.strictObject({
       t: z.literal("build"),
       buildingId: idSchema,
       ...coordinates,
@@ -106,7 +111,13 @@ export const serverMessageSchema = (() =>
     z.strictObject({
       v: z.literal(PROTOCOL_VERSION),
       t: z.literal("error"),
-      code: z.enum(["INVALID_MESSAGE", "UNSUPPORTED_INTENT", "RATE_LIMITED"]),
+      code: z.enum([
+        "INVALID_MESSAGE",
+        "UNSUPPORTED_INTENT",
+        "RATE_LIMITED",
+        "INVALID_TARGET",
+        "ROOM_FULL",
+      ]),
       requestId: idSchema.optional(),
     }),
     z.strictObject({

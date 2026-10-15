@@ -15,7 +15,7 @@ export const makeMap = () => ({
 });
 
 import { describe, expect, it } from "vitest";
-import { forestMapSchema, isWalkable } from "./map.js";
+import { forestMapSchema, isWalkable, canWalkSegment } from "./map.js";
 describe("forest geometry", () => {
   it("validates a map and applies radius at boundaries and obstacles", () => {
     const map = forestMapSchema.parse(makeMap());
@@ -33,4 +33,16 @@ describe("forest geometry", () => {
       false,
     );
   });
+});
+
+it("rejects swept segments with walkable endpoints across an obstacle", () => {
+  const map = makeMap();
+  expect(isWalkable(map, { x: 300, y: 305 })).toBe(true);
+  expect(isWalkable(map, { x: 600, y: 305 })).toBe(true);
+  expect(canWalkSegment(map, { x: 300, y: 305 }, { x: 600, y: 305 })).toBe(
+    false,
+  );
+  expect(canWalkSegment(map, { x: 300, y: 445 }, { x: 600, y: 445 })).toBe(
+    true,
+  );
 });

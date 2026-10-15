@@ -62,6 +62,64 @@ describe("WS game server", () => {
     expect((await client.next()).t).toBe("welcome");
     expect(await client.next()).toMatchObject({ t: "snapshot", phase: 1 });
   });
+  it("synchronizes movement for two players and removes disconnected entities", async () => {
+    const first = await connect(true);
+    const firstWelcome = await first.next();
+    const second = await connect(true);
+    const secondWelcome = await second.next();
+    if (firstWelcome.t !== "welcome" || secondWelcome.t !== "welcome")
+      throw new Error("Missing welcome");
+    first.socket.send(
+      JSON.stringify({
+        v: 2,
+        t: "intent",
+        requestId: "walk",
+        intent: { t: "move", x: 260, y: 445 },
+      }),
+    );
+    let observed = false;
+    for (let index = 0; index < 20; index += 1) {
+      const message = await second.next();
+      if (message.t !== "snapshot") continue;
+      const troll = message.entities.find(
+        ({ ownerId }) => ownerId === firstWelcome.playerId,
+      );
+      const elf = message.entities.find(
+        ({ ownerId }) => ownerId === secondWelcome.playerId,
+      );
+      if (troll && troll.position.x > 160) {
+        expect(elf?.position).toEqual(secondWelcome.map.spawns[1]);
+        expect(troll.position.x).toBeLessThanOrEqual(260);
+        observed = true;
+        break;
+      }
+    }
+    expect(observed).toBe(true);
+    const closed = once(first.socket, "close");
+    first.socket.close();
+    await closed;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(
+      server.room.snapshot().entities.map(({ ownerId }) => ownerId),
+    ).toEqual([secondWelcome.playerId]);
+  });
+
+  it("rejects excess players without creating an extra entity", async () => {
+    for (let index = 0; index < server.room.map.spawns.length; index += 1) {
+      const client = await connect();
+      await client.next();
+    }
+    const excess = await connect();
+    expect(await excess.next()).toMatchObject({
+      t: "error",
+      code: "ROOM_FULL",
+    });
+    expect(server.room.size).toBe(server.room.map.spawns.length);
+    expect(server.room.snapshot().entities).toHaveLength(
+      server.room.map.spawns.length,
+    );
+  });
+
   it("serves health and rejects unknown HTTP routes/methods", async () => {
     expect(await (await fetch(baseUrl + "/health")).json()).toEqual({
       status: "ok",
@@ -105,7 +163,7 @@ describe("WS game server", () => {
         v: 2,
         t: "intent",
         requestId: "move-1",
-        intent: { t: "move", x: 1, y: 2 },
+        intent: { t: "build", buildingId: "wall", x: 1, y: 2 },
       }),
     );
     expect(await client.next()).toEqual({
@@ -206,7 +264,7 @@ describe("WS game server", () => {
       startGameServer({
         config: {
           match: server.room.match,
-          units: [],
+          units: [...server.room.units],
           buildings: [],
           items: [],
           classes: [],

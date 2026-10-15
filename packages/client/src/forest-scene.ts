@@ -1,7 +1,13 @@
-import type { ForestMap } from "@troll-vs-elves/shared";
+import type {
+  ForestMap,
+  Snapshot,
+  Intent,
+  Position,
+} from "@troll-vs-elves/shared";
+import { createPlayerSprite } from "./player-sprite.js";
 import { Application, Container, Graphics, TilingSprite } from "pixi.js";
 
-const WORLD = (() => ({ width: 960, height: 700, tile: 64 }))();
+const WORLD = (() => ({ tile: 64 }))();
 const COLORS = (() => ({
   ground: 0x344d35,
   moss: 0x435a39,
@@ -70,10 +76,29 @@ const stone = (x: number, y: number, rotation: number): Graphics => {
   return graphic;
 };
 
+const INPUT = (() => ({ steerIntervalMs: 200, interpolationMs: 50 }))();
+const KEYS = (() =>
+  new Set([
+    "KeyW",
+    "KeyA",
+    "KeyS",
+    "KeyD",
+    "ArrowUp",
+    "ArrowLeft",
+    "ArrowDown",
+    "ArrowRight",
+  ]))();
+export interface ForestScene {
+  update: (snapshot: Snapshot) => void;
+  destroy: () => void;
+}
+
 export const createForestScene = async (
   host: HTMLElement,
   map: ForestMap,
-): Promise<() => void> => {
+  playerId: string,
+  sendIntent: (intent: Intent) => void,
+): Promise<ForestScene> => {
   const app = new Application();
   try {
     await app.init({
@@ -90,7 +115,7 @@ export const createForestScene = async (
     throw error;
   }
   host.appendChild(app.canvas);
-  const world = new Container();
+  const world = new Container({ sortableChildren: true });
   app.stage.addChild(world);
 
   const grass = new Graphics()
@@ -177,9 +202,11 @@ export const createForestScene = async (
   const trees = [...map.trees];
   trees
     .sort((left, right) => left.y - right.y)
-    .forEach(({ x, y, scale, ancient }) =>
-      world.addChild(tree(x, y, scale, ancient)),
-    );
+    .forEach(({ x, y, scale, ancient }) => {
+      const sprite = tree(x, y, scale, ancient);
+      sprite.zIndex = y;
+      world.addChild(sprite);
+    });
 
   const glow = new Graphics()
     .ellipse(455, 235, 65, 40)
@@ -215,18 +242,148 @@ export const createForestScene = async (
   });
   observer.observe(host);
   fit();
+  const players = new Map<
+    string,
+    { root: Container; from: Position; target: Position }
+  >();
+  let receivedAt = performance.now();
+  const targetMarker = new Graphics();
+  targetMarker.zIndex = map.height;
+  world.addChild(targetMarker);
+  let markerUntil = 0;
+  const pressed = new Set<string>();
+  const steer = (): void => {
+    const x =
+      Number(pressed.has("KeyD") || pressed.has("ArrowRight")) -
+      Number(pressed.has("KeyA") || pressed.has("ArrowLeft"));
+    const y =
+      Number(pressed.has("KeyS") || pressed.has("ArrowDown")) -
+      Number(pressed.has("KeyW") || pressed.has("ArrowUp"));
+    sendIntent({ t: "steer", x, y });
+  };
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (
+      !KEYS.has(event.code) ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLTextAreaElement
+    )
+      return;
+    event.preventDefault();
+    if (!pressed.has(event.code)) {
+      pressed.add(event.code);
+      steer();
+    }
+  };
+  const onKeyUp = (event: KeyboardEvent): void => {
+    if (pressed.delete(event.code)) {
+      event.preventDefault();
+      steer();
+    }
+  };
+  const stopSteering = (): void => {
+    if (pressed.size) {
+      pressed.clear();
+      steer();
+    }
+  };
+  const onVisibility = (): void => {
+    if (document.hidden) stopSteering();
+  };
+  const onPointer = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    stopSteering();
+    const rect = app.canvas.getBoundingClientRect();
+    const x =
+      (((event.clientX - rect.left) * app.screen.width) / rect.width -
+        world.x) /
+      world.scale.x;
+    const y =
+      (((event.clientY - rect.top) * app.screen.height) / rect.height -
+        world.y) /
+      world.scale.y;
+    sendIntent({ t: "move", x, y });
+    targetMarker
+      .clear()
+      .ellipse(x, y, 12, 7)
+      .stroke({ width: 2, color: COLORS.gold })
+      .circle(x, y, 2)
+      .fill(COLORS.gold);
+    markerUntil = performance.now() + 900;
+    app.canvas.focus({ preventScroll: true });
+  };
+  app.canvas.tabIndex = 0;
+  app.canvas.setAttribute(
+    "aria-label",
+    "Игровая карта. Нажмите на землю или используйте WASD и стрелки для движения.",
+  );
+  app.canvas.addEventListener("pointerdown", onPointer);
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", stopSteering);
+  document.addEventListener("visibilitychange", onVisibility);
+  const inputInterval = setInterval(() => {
+    if (pressed.size) steer();
+  }, INPUT.steerIntervalMs);
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let elapsed = 0;
   app.ticker.add((ticker) => {
+    const now = performance.now();
+    const progress = Math.min(1, (now - receivedAt) / INPUT.interpolationMs);
+    for (const { root, from, target } of players.values()) {
+      root.position.set(
+        from.x + (target.x - from.x) * progress,
+        from.y + (target.y - from.y) * progress,
+      );
+      root.zIndex = root.y;
+    }
+    targetMarker.visible = now < markerUntil;
     if (reducedMotion.matches) return;
     elapsed += ticker.deltaMS / 1000;
     glow.alpha = 0.65 + Math.sin(elapsed) * 0.2;
     motes.alpha = 0.6 + Math.sin(elapsed * 0.7) * 0.3;
     motes.y = Math.sin(elapsed * 0.4) * 4;
   });
-  return () => {
-    observer.disconnect();
-    app.destroy(true, { children: true });
-    texture.destroy(true);
+  return {
+    update: (snapshot) => {
+      receivedAt = performance.now();
+      const ids = new Set(snapshot.entities.map(({ id }) => id));
+      for (const [id, player] of players) {
+        if (!ids.has(id)) {
+          player.root.destroy({ children: true });
+          players.delete(id);
+        }
+      }
+      for (const entity of snapshot.entities) {
+        const existing = players.get(entity.id);
+        if (existing) {
+          existing.from = { x: existing.root.x, y: existing.root.y };
+          existing.target = entity.position;
+        } else {
+          const root = createPlayerSprite(entity, entity.ownerId === playerId);
+          root.position.set(entity.position.x, entity.position.y);
+          root.zIndex = entity.position.y;
+          world.addChild(root);
+          players.set(entity.id, {
+            root,
+            from: entity.position,
+            target: entity.position,
+          });
+        }
+      }
+    },
+    destroy: () => {
+      clearInterval(inputInterval);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", stopSteering);
+      document.removeEventListener("visibilitychange", onVisibility);
+      app.canvas.removeEventListener("pointerdown", onPointer);
+      observer.disconnect();
+      app.destroy(true, { children: true });
+      texture.destroy(true);
+    },
   };
 };
