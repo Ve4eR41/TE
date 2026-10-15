@@ -23,3 +23,12 @@ export type {
   MatchConfig,
   UnitConfig,
 } from "./config/types.js";
+export type {
+  Entity,
+  EntityId,
+  Phase,
+  PlayerId,
+  Position,
+  Resources,
+  Team,
+} from "./types.js";
