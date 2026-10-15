@@ -1,14 +1,17 @@
 # 001 — Инструменты монорепозитория
 
 ## Цель
+
 Подготовить воспроизводимый TypeScript workspace. Игровую логику не реализовывать.
 Перед кодом представить краткий план. Один spec — один PR.
 
 ## Читать
+
 `AGENTS.md`, `docs/conventions.md`, `docs/architecture.md`.
 Зависимостей от других specs нет. Существующие документы сохранить.
 
 ## Разрешённые изменения
+
 Корневые package.json, pnpm-workspace.yaml, pnpm-lock.yaml, tsconfig,
 ESLint/Prettier/Vitest-конфигурация, .gitignore, .node-version, .npmrc,
 `.github/workflows/ci.yml`, README.md; package.json, tsconfig, src и конфигурация
@@ -16,6 +19,7 @@ ESLint/Prettier/Vitest-конфигурация, .gitignore, .node-version, .npm
 Правки существующих инструкций — только для приведения команд в соответствие.
 
 ## Версии и разрешённые зависимости
+
 Node.js 24 LTS, pnpm 11 (точный patch зафиксировать в packageManager).
 Разрешены: TypeScript 5, Vitest 3, ESLint 9, @eslint/js 9,
 typescript-eslint 8, globals, Prettier 3, @types/node 24.
@@ -23,6 +27,7 @@ typescript-eslint 8, globals, Prettier 3, @types/node 24.
 изменения spec. Zod, ws, PixiJS и Vite появятся в своих задачах.
 
 ## Результат
+
 - Три приватных ESM-пакета с именами из architecture; server/client объявляют
   зависимость `@troll-vs-elves/shared: workspace:*`.
 - Shared собирается в dist с JS и декларациями. Зависимые пакеты используют
@@ -48,10 +53,12 @@ typescript-eslint 8, globals, Prettier 3, @types/node 24.
   но не конфиги-примеры и не lockfile.
 
 ## Не делать
+
 Не реализовывать конфиг-лоадер, протокол, сервер, рендер, симулятор или деплой.
 Не добавлять другие task runners и зависимости, не менять игровой баланс.
 
 ## Definition of Done
+
 С чистыми артефактами проходят `pnpm install --frozen-lockfile`,
 `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm build`.
 В отчёте отметить, что тестов поведения пока нет; тестовый runner лишь настроен.

@@ -7,14 +7,14 @@
 
 ## Обязательные файлы
 
-| Файл | Содержимое |
-| --- | --- |
-| `match.json` | Объект параметров матча |
-| `units.json` | Массив юнитов |
-| `buildings.json` | Массив зданий |
-| `items.json` | Массив предметов |
-| `classes.json` | Массив классов |
-| `abilities.json` | Массив способностей |
+| Файл             | Содержимое              |
+| ---------------- | ----------------------- |
+| `match.json`     | Объект параметров матча |
+| `units.json`     | Массив юнитов           |
+| `buildings.json` | Массив зданий           |
+| `items.json`     | Массив предметов        |
+| `classes.json`   | Массив классов          |
+| `abilities.json` | Массив способностей     |
 
 Пустые массивы допустимы, пропущенный файл — ошибка. Все объекты строгие:
 неизвестные ключи отклоняются. ID — непустая строка без пробелов по краям,
@@ -41,13 +41,13 @@
 строк схемой не допускается. HP — положительное целое; остальные показатели
 в таблице — неотрицательные числа. Стоимость — объект с целыми `gold` и `wood`.
 
-| Тип | Поля |
-| --- | --- |
-| Unit | `id`, `name`, `hp`, `speedUnitsPerSecond`, `attackDamage`, `cost` |
-| Building | `id`, `name`, `hp`, `cost` |
-| Item | `id`, `name`, `cost` |
-| Class | `id`, `name` |
-| Ability | `id`, `name`, `cooldownSeconds` |
+| Тип      | Поля                                                              |
+| -------- | ----------------------------------------------------------------- |
+| Unit     | `id`, `name`, `hp`, `speedUnitsPerSecond`, `attackDamage`, `cost` |
+| Building | `id`, `name`, `hp`, `cost`                                        |
+| Item     | `id`, `name`, `cost`                                              |
+| Class    | `id`, `name`                                                      |
+| Ability  | `id`, `name`, `cooldownSeconds`                                   |
 
 Пример содержимого `units.json`:
 
@@ -68,10 +68,21 @@
 
 ```json
 {
-  "buildings.json": [{ "id": "test-wall", "name": "Test wall", "hp": 100, "cost": { "gold": 0, "wood": 10 } }],
-  "items.json": [{ "id": "test-item", "name": "Test item", "cost": { "gold": 1, "wood": 0 } }],
+  "buildings.json": [
+    {
+      "id": "test-wall",
+      "name": "Test wall",
+      "hp": 100,
+      "cost": { "gold": 0, "wood": 10 }
+    }
+  ],
+  "items.json": [
+    { "id": "test-item", "name": "Test item", "cost": { "gold": 1, "wood": 0 } }
+  ],
   "classes.json": [{ "id": "test-class", "name": "Test class" }],
-  "abilities.json": [{ "id": "test-ability", "name": "Test ability", "cooldownSeconds": 1 }]
+  "abilities.json": [
+    { "id": "test-ability", "name": "Test ability", "cooldownSeconds": 1 }
+  ]
 }
 ```
 
@@ -80,6 +91,7 @@
 отдельными specs с одновременным обновлением схем, тестов и этого документа.
 
 ## Результат загрузки и ошибки
+
 `GameConfig` содержит `match`, `units`, `buildings`, `items`, `classes`, `abilities`.
 Типы выводятся из Zod, а не поддерживаются вручную параллельно.
 `ConfigError extends Error` имеет `filePath`, `issues` (массив объектов
