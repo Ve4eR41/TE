@@ -13,9 +13,16 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./config/node": {
+      "types": "./dist/config/node.d.ts",
+      "import": "./dist/config/node.js"
     }
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
 }

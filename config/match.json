@@ -1,0 +1,5 @@
+{
+  "durationSeconds": 1800,
+  "tickRateHz": 20,
+  "phaseStartSeconds": [0, 600, 1200]
+}
