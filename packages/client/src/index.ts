@@ -11,6 +11,28 @@ const element = <T extends HTMLElement>(selector: string): T => {
 };
 const main = (): void => {
   const button = element<HTMLButtonElement>("#connect");
+  const fullscreen = element<HTMLButtonElement>("#fullscreen");
+  const syncFullscreen = (): void => {
+    const enabled = Boolean(document.fullscreenElement);
+    fullscreen.setAttribute("aria-pressed", String(enabled));
+    fullscreen.setAttribute(
+      "aria-label",
+      enabled ? "Выйти из полного экрана" : "На полный экран",
+    );
+    fullscreen.title = enabled ? "Выйти из полного экрана" : "На полный экран";
+  };
+  fullscreen.hidden = !document.fullscreenEnabled;
+  document.addEventListener("fullscreenchange", syncFullscreen);
+  fullscreen.addEventListener("click", () => {
+    const request = document.fullscreenElement
+      ? document.exitFullscreen()
+      : document.documentElement.requestFullscreen();
+    void request.catch(() => {
+      element("#status").textContent =
+        "Браузер не разрешил полный экран. Игра доступна во всём окне.";
+      syncFullscreen();
+    });
+  });
   const roleChoice = element<HTMLSelectElement>("#role-choice");
   const gold = element("#resource-gold");
   const wood = element("#resource-wood");

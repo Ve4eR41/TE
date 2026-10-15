@@ -6,6 +6,7 @@ import type {
   Intent,
   Position,
 } from "@troll-vs-elves/shared";
+import { getCameraTransform } from "./camera.js";
 import { createBuildingSprite } from "./building-sprite.js";
 import { createPlayerSprite } from "./player-sprite.js";
 import { Application, Container, Graphics, TilingSprite } from "pixi.js";
@@ -233,16 +234,14 @@ export const createForestScene = async (
       .fill({ color: COLORS.gold, alpha: 0.7 });
   }
   world.addChild(motes);
+  let cameraFocus: Position = map.spawns[0] ?? {
+    x: map.width / 2,
+    y: map.height / 2,
+  };
   const fit = (): void => {
-    const scale = Math.min(
-      app.screen.width / map.width,
-      app.screen.height / map.height,
-    );
-    world.scale.set(scale);
-    world.position.set(
-      (app.screen.width - map.width * scale) / 2,
-      (app.screen.height - map.height * scale) / 2,
-    );
+    const camera = getCameraTransform(map, app.screen, cameraFocus);
+    world.scale.set(camera.scale);
+    world.position.set(camera.x, camera.y);
   };
   const observer = new ResizeObserver(() => {
     app.resize();
@@ -304,6 +303,7 @@ export const createForestScene = async (
       event.metaKey ||
       event.altKey ||
       event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLSelectElement ||
       event.target instanceof HTMLTextAreaElement
     )
       return;
@@ -404,6 +404,11 @@ export const createForestScene = async (
       );
       root.zIndex = root.y;
     }
+    const hero = [...players.values()].find(
+      ({ root }) => root.label === playerId,
+    );
+    if (hero) cameraFocus = { x: hero.root.x, y: hero.root.y };
+    fit();
     targetMarker.visible = now < markerUntil;
     if (reducedMotion.matches) return;
     elapsed += ticker.deltaMS / 1000;
@@ -466,6 +471,7 @@ export const createForestScene = async (
           existing.target = entity.position;
         } else {
           const root = createPlayerSprite(entity, entity.ownerId === playerId);
+          if (entity.ownerId === playerId) root.label = playerId;
           root.position.set(entity.position.x, entity.position.y);
           root.zIndex = entity.position.y;
           world.addChild(root);
