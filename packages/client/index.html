@@ -83,13 +83,22 @@
       <section class="construction-panel" aria-label="Строительство и найм">
         <div class="construction-heading">
           <span>ЛЕСНАЯ СТРАЖА</span><span id="building-count">Стены: 0 / —</span
+          ><span id="hall-count">Ратуша: 0 / —</span
+          ><span id="hero-info" hidden></span
           ><span id="unit-count">Стражи: 0 / —</span>
         </div>
         <div class="construction-actions">
+          <select id="building-choice" aria-label="Тип постройки">
+            <option value="wall">Стена</option>
+            <option value="town-hall">Ратуша</option>
+          </select>
           <button id="build-wall" type="button" disabled aria-pressed="false">
             Стена</button
           ><button id="upgrade-wall" type="button" disabled>Улучшить</button
-          ><button id="hire-guard" type="button" disabled>Страж</button>
+          ><button id="hire-guard" type="button" disabled>Страж</button
+          ><button id="upgrade-troll" type="button" hidden disabled>
+            Прокачка тролля
+          </button>
         </div>
         <p id="building-info">Нажмите на стену, чтобы выбрать её</p>
         <p id="action-status" role="status" aria-live="polite">

@@ -73,35 +73,74 @@ export const matchSchema = (() =>
     }))();
 
 export const unitSchema = (() =>
-  z.strictObject({
-    id: idSchema,
-    name: nameSchema,
-    hp: z.number().int().positive(),
-    speedUnitsPerSecond: z.number().finite().nonnegative(),
-    attackDamage: z.number().finite().nonnegative(),
-    cost: costSchema,
-    recruitment: z
-      .strictObject({
-        radius: z.number().finite().positive(),
-        maxPerPlayer: z.number().int().positive().max(MAX_SNAPSHOT_ENTITIES),
-        aggroRangeUnits: z.number().finite().positive(),
-        stopRangeUnits: z.number().finite().positive(),
-        spawnOffsets: z
-          .array(
-            z.strictObject({
-              x: z.number().finite(),
-              y: z.number().finite(),
-            }),
-          )
-          .min(1)
-          .max(MAX_SNAPSHOT_ENTITIES),
-      })
-      .refine((value) => value.stopRangeUnits < value.aggroRangeUnits, {
-        path: ["stopRangeUnits"],
-        message: "Stop range must be below aggro range",
-      })
-      .optional(),
-  }))();
+  z
+    .strictObject({
+      id: idSchema,
+      name: nameSchema,
+      hp: z.number().int().positive(),
+      speedUnitsPerSecond: z.number().finite().nonnegative(),
+      attackDamage: z.number().finite().nonnegative(),
+      cost: costSchema,
+      progression: z
+        .array(
+          z.strictObject({
+            hp: z.number().int().positive(),
+            speedUnitsPerSecond: z.number().finite().positive(),
+            cost: resourcesSchema,
+          }),
+        )
+        .min(1)
+        .max(MAX_SNAPSHOT_ENTITIES)
+        .optional(),
+      recruitment: z
+        .strictObject({
+          radius: z.number().finite().positive(),
+          maxPerPlayer: z.number().int().positive().max(MAX_SNAPSHOT_ENTITIES),
+          aggroRangeUnits: z.number().finite().positive(),
+          stopRangeUnits: z.number().finite().positive(),
+          spawnOffsets: z
+            .array(
+              z.strictObject({
+                x: z.number().finite(),
+                y: z.number().finite(),
+              }),
+            )
+            .min(1)
+            .max(MAX_SNAPSHOT_ENTITIES),
+        })
+        .refine((value) => value.stopRangeUnits < value.aggroRangeUnits, {
+          path: ["stopRangeUnits"],
+          message: "Stop range must be below aggro range",
+        })
+        .optional(),
+    })
+    .superRefine((unit, context) => {
+      if (!unit.progression) return;
+      if (unit.id !== "troll")
+        context.addIssue({
+          code: "custom",
+          path: ["progression"],
+          message: "Only troll can level up",
+        });
+      let hp = unit.hp;
+      let speed = unit.speedUnitsPerSecond;
+      unit.progression.forEach((level, index) => {
+        if (level.hp <= hp)
+          context.addIssue({
+            code: "custom",
+            path: ["progression", index, "hp"],
+            message: "HP must increase",
+          });
+        if (level.speedUnitsPerSecond < speed)
+          context.addIssue({
+            code: "custom",
+            path: ["progression", index, "speedUnitsPerSecond"],
+            message: "Speed must not decrease",
+          });
+        hp = level.hp;
+        speed = level.speedUnitsPerSecond;
+      });
+    }))();
 
 export const buildingSchema = (() =>
   z
@@ -113,8 +152,13 @@ export const buildingSchema = (() =>
       radius: z.number().finite().positive(),
       buildRangeUnits: z.number().finite().positive(),
       maxPerPlayer: z.number().int().positive().max(MAX_SNAPSHOT_ENTITIES),
+      incomePerSecond: resourcesSchema.optional(),
       upgrade: z
-        .strictObject({ hp: z.number().int().positive(), cost: costSchema })
+        .strictObject({
+          hp: z.number().int().positive(),
+          cost: costSchema,
+          incomePerSecond: resourcesSchema.optional(),
+        })
         .optional(),
     })
     .refine(

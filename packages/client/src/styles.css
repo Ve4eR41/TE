@@ -483,3 +483,39 @@ small {
     font-size: 9px;
   }
 }
+
+.construction-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 1100px) and (min-width: 601px) {
+  .construction-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .construction-heading {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  #action-status,
+  #building-info {
+    grid-column: 1 / -1;
+  }
+  .controls-hint {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .construction-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .construction-actions button,
+  .construction-actions select {
+    min-width: 0;
+    width: 100%;
+  }
+  .construction-actions select {
+    font-size: 10px;
+    padding: 4px;
+  }
+}

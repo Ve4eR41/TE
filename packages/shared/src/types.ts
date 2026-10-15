@@ -39,3 +39,10 @@ export interface UnitEntity extends Entity {
   readonly unitId: string;
   readonly radius: number;
 }
+
+/** Player avatar with server-authoritative progression and movement speed. */
+export interface PlayerEntity extends Entity {
+  readonly ownerId: PlayerId;
+  readonly level: number;
+  readonly speedUnitsPerSecond: number;
+}

@@ -13,16 +13,16 @@ const ACTION_ERRORS = (() =>
   ({
     INVALID_TARGET: "Здесь нельзя: занято, препятствие или место появления.",
     UNSUPPORTED_INTENT: "Это действие пока недоступно.",
-    ACTION_FORBIDDEN: "Строить, улучшать и нанимать может только эльф.",
-    INSUFFICIENT_RESOURCES: "Не хватает золота или дерева. Подождите дохода.",
+    ACTION_FORBIDDEN: "Для этого героя действие недоступно.",
+    INSUFFICIENT_RESOURCES: "Не хватает ресурсов. Подождите дохода.",
     BUILD_LIMIT_REACHED: "Достигнут лимит построек.",
     MATCH_ENDED: "Время матча вышло. Действия остановлены.",
     INVALID_UNIT: "Такого стража нельзя нанять.",
     UNIT_LIMIT_REACHED: "Достигнут лимит стражей.",
     SPAWN_BLOCKED: "Нет места для стража. Отойдите на свободную землю.",
     INVALID_BUILDING: "Такой постройки нет.",
-    NOT_OWNER: "Можно улучшать только свою стену.",
-    MAX_LEVEL: "Стена уже улучшена до максимума.",
+    NOT_OWNER: "Можно улучшать только своего героя или здание.",
+    MAX_LEVEL: "Достигнут максимальный уровень.",
     OUT_OF_RANGE: "Слишком далеко. Подойдите ближе.",
   }) satisfies Partial<Record<ErrorCode, string>>)();
 const getActionError = (code: ErrorCode): string | undefined =>

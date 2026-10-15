@@ -17,5 +17,34 @@
         "wood": 30
       }
     }
+  },
+  {
+    "id": "town-hall",
+    "name": "Ратуша",
+    "hp": 500,
+    "radius": 34,
+    "buildRangeUnits": 160,
+    "maxPerPlayer": 1,
+    "cost": {
+      "gold": 60,
+      "wood": 60
+    },
+    "incomePerSecond": {
+      "gold": 2,
+      "wood": 1,
+      "rage": 0
+    },
+    "upgrade": {
+      "hp": 800,
+      "cost": {
+        "gold": 80,
+        "wood": 80
+      },
+      "incomePerSecond": {
+        "gold": 4,
+        "wood": 2,
+        "rage": 0
+      }
+    }
   }
 ]

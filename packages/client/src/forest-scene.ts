@@ -251,7 +251,7 @@ export const createForestScene = async (
   fit();
   const players = new Map<
     string,
-    { root: Container; from: Position; target: Position }
+    { root: Container; from: Position; target: Position; appearance: string }
   >();
   const structures = new Map<
     string,
@@ -467,7 +467,16 @@ export const createForestScene = async (
         }
       }
       for (const entity of [...snapshot.entities, ...snapshot.units]) {
-        const existing = players.get(entity.id);
+        const appearance =
+          "level" in entity
+            ? `${entity.level}:${entity.hp}:${entity.maxHp}`
+            : "guard";
+        let existing = players.get(entity.id);
+        if (existing && existing.appearance !== appearance) {
+          existing.root.destroy({ children: true });
+          players.delete(entity.id);
+          existing = undefined;
+        }
         if (existing) {
           existing.from = { x: existing.root.x, y: existing.root.y };
           existing.target = entity.position;
@@ -477,6 +486,7 @@ export const createForestScene = async (
             entity,
             entity.ownerId === playerId,
             guard,
+            "level" in entity ? entity : undefined,
           );
           if (!guard && entity.ownerId === playerId) root.label = playerId;
           root.position.set(entity.position.x, entity.position.y);
@@ -486,6 +496,7 @@ export const createForestScene = async (
             root,
             from: entity.position,
             target: entity.position,
+            appearance,
           });
         }
       }

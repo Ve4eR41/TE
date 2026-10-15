@@ -58,6 +58,13 @@ export const entitySchema = (() =>
       message: "HP exceeds maxHp",
     }))();
 
+export const playerEntitySchema = (() =>
+  entitySchema.safeExtend({
+    ownerId: idSchema,
+    level: z.number().int().positive(),
+    speedUnitsPerSecond: z.number().finite().nonnegative(),
+  }))();
+
 export const buildingEntitySchema = (() =>
   entitySchema.safeExtend({
     ownerId: idSchema,
@@ -77,7 +84,7 @@ export const snapshotSchema = (() =>
   z.strictObject({
     tick: z.number().int().nonnegative(),
     entities: z
-      .array(entitySchema)
+      .array(playerEntitySchema)
       .max(MAX_SNAPSHOT_ENTITIES)
       .refine(
         (entities) =>
@@ -134,6 +141,7 @@ export const serverMessageSchema = (() =>
       map: forestMapSchema,
       buildingDefinitions: buildingsSchema,
       unitDefinitions: unitsSchema,
+      heroDefinitions: unitsSchema,
     }),
     z.strictObject({
       v: z.literal(PROTOCOL_VERSION),

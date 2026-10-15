@@ -42,6 +42,11 @@ const main = (): void => {
   const gold = element("#resource-gold");
   const wood = element("#resource-wood");
   const rage = element("#resource-rage");
+  const buildingChoice = element<HTMLSelectElement>("#building-choice");
+  const trollUpgrade = element<HTMLButtonElement>("#upgrade-troll");
+  const hallCount = element("#hall-count");
+  const heroInfo = element("#hero-info");
+  let heroDefinitions: readonly UnitConfig[] = [];
   const buildButton = element<HTMLButtonElement>("#build-wall");
   const hireButton = element<HTMLButtonElement>("#hire-guard");
   const unitCount = element("#unit-count");
@@ -72,6 +77,35 @@ const main = (): void => {
   const renderActions = (): void => {
     const own = latest?.entities.find(({ ownerId }) => ownerId === ownId);
     const wall = definitions.find(({ id }) => id === "wall");
+    const chosen = definitions.find(({ id }) => id === buildingChoice.value);
+    const troll = own?.team === "troll";
+    trollUpgrade.hidden = !troll;
+    const next =
+      own && troll
+        ? heroDefinitions.find(({ id }) => id === "troll")?.progression?.[
+            own.level - 1
+          ]
+        : undefined;
+    trollUpgrade.disabled =
+      !scene || !latest || latest.timeLeftSeconds <= 0 || !next;
+    trollUpgrade.textContent = next
+      ? `Уровень ${(own?.level ?? 0) + 1} · ${next.cost.rage} ✦`
+      : "Максимальный уровень";
+    heroInfo.textContent = own
+      ? `Ур. ${own.level} · HP ${own.hp}/${own.maxHp} · скорость ${own.speedUnitsPerSecond}`
+      : "";
+    heroInfo.hidden = !troll;
+    hallCount.textContent = `Ратуша: ${latest?.buildings.filter((building) => building.ownerId === ownId && building.buildingId === "town-hall").length ?? 0} / ${definitions.find(({ id }) => id === "town-hall")?.maxPerPlayer ?? "—"}`;
+    for (const control of [
+      buildingChoice,
+      buildButton,
+      hireButton,
+      upgradeButton,
+    ])
+      control.hidden = Boolean(troll);
+    buildingCount.hidden = Boolean(troll);
+    unitCount.hidden = Boolean(troll);
+    hallCount.hidden = Boolean(troll);
     const available = Boolean(
       scene && latest && latest.timeLeftSeconds > 0 && own?.team === "elves",
     );
@@ -86,11 +120,11 @@ const main = (): void => {
       ? `Страж · ${guard.cost.gold} ◆ ${guard.cost.wood} ♣`
       : "Страж";
     unitCount.textContent = `Стражи: ${guards} / ${guard?.recruitment?.maxPerPlayer ?? "—"}`;
-    buildButton.disabled = !available || !wall;
+    buildButton.disabled = !available || !chosen;
     buildButton.textContent = buildMode
       ? "Отменить · Esc"
-      : wall
-        ? `Стена · ${wall.cost.gold} ◆ ${wall.cost.wood} ♣`
+      : chosen
+        ? `${chosen.name} · ${chosen.cost.gold} ◆ ${chosen.cost.wood} ♣`
         : "Стена";
     buildButton.setAttribute("aria-pressed", String(buildMode));
     const selected = latest?.buildings.find(({ id }) => id === selectedId);
@@ -105,10 +139,18 @@ const main = (): void => {
     upgradeButton.textContent = definition?.upgrade
       ? `Улучшить · ${definition.upgrade.cost.gold} ◆ ${definition.upgrade.cost.wood} ♣`
       : "Улучшить";
-    buildingInfo.textContent = selected
-      ? `Стена ${selected.level} ур. · HP ${selected.hp}/${selected.maxHp}${selected.ownerId === ownId ? " · ваша" : " · союзника"}`
-      : "Нажмите на стену, чтобы выбрать её";
-    buildingCount.textContent = `Стены: ${latest?.buildings.filter(({ ownerId }) => ownerId === ownId).length ?? 0} / ${wall?.maxPerPlayer ?? "—"}`;
+    const income =
+      (selected?.level === 2
+        ? definition?.upgrade?.incomePerSecond
+        : undefined) ?? definition?.incomePerSecond;
+    buildingInfo.textContent = troll
+      ? next
+        ? `Следующий: HP ${next.hp}, скорость ${next.speedUnitsPerSecond}. Ярость накапливается со временем.`
+        : "Прокачка завершена. Бой пока не включён."
+      : selected
+        ? `${definition?.name ?? "Здание"} ${selected.level} ур. · HP ${selected.hp}/${selected.maxHp}${selected.ownerId === ownId ? " · ваша" : " · союзника"}${income ? ` · +${income.gold} ◆ +${income.wood} ♣ / с` : ""}`
+        : "Выберите здание для улучшения";
+    buildingCount.textContent = `Стены: ${latest?.buildings.filter((building) => building.ownerId === ownId && building.buildingId === "wall").length ?? 0} / ${wall?.maxPerPlayer ?? "—"}`;
     if (!available && buildMode) scene?.setBuildMode(null);
   };
   const clearScene = (): void => {
@@ -118,6 +160,7 @@ const main = (): void => {
     latest = undefined;
     definitions = [];
     unitDefinitions = [];
+    heroDefinitions = [];
     selectedId = null;
     buildMode = false;
     renderActions();
@@ -187,6 +230,7 @@ const main = (): void => {
           ownId = message.playerId;
           definitions = message.buildingDefinitions;
           unitDefinitions = message.unitDefinitions;
+          heroDefinitions = message.heroDefinitions;
           sceneStatus.textContent = "Пробуждаем лес…";
           void createForestScene(
             host,
@@ -205,7 +249,7 @@ const main = (): void => {
                 renderActions();
                 actionStatus.textContent = enabled
                   ? "Кликните по свободной земле рядом с героем. Esc — отмена."
-                  : "Клик / тап — движение. Нажмите на стену для улучшения.";
+                  : "Клик / тап — движение. Нажмите на здание для улучшения.";
               },
             },
           )
@@ -248,13 +292,13 @@ const main = (): void => {
               previous.buildings.filter(({ ownerId }) => ownerId === ownId)
                 .length
           )
-            actionStatus.textContent = "Стена построена.";
+            actionStatus.textContent = `${definitions.find(({ id }) => id === snapshot.buildings.find((building) => building.ownerId === ownId && !previous.buildings.some(({ id }) => id === building.id))?.buildingId)?.name ?? "Здание"} построена.`;
           if (
             previous?.buildings.find(({ id }) => id === selectedId)?.level ===
               1 &&
             snapshot.buildings.find(({ id }) => id === selectedId)?.level === 2
           )
-            actionStatus.textContent = "Стена улучшена до 2 уровня.";
+            actionStatus.textContent = "Здание улучшено до 2 уровня.";
           if (
             !previous &&
             snapshot.entities.find(({ ownerId }) => ownerId === ownId)?.team ===
@@ -262,6 +306,15 @@ const main = (): void => {
           )
             actionStatus.textContent =
               "«Стена» — укрепления, «Страж» — найм. Стражи пока не наносят урон.";
+          const ownHero = snapshot.entities.find(({ id }) => id === ownId);
+          const oldHero = previous?.entities.find(({ id }) => id === ownId);
+          if (
+            ownHero?.team === "troll" &&
+            (!oldHero || ownHero.level > oldHero.level)
+          )
+            actionStatus.textContent = oldHero
+              ? `Тролль достиг уровня ${ownHero.level}. Здоровье и скорость увеличены.`
+              : "Нажмите кнопку уровня, чтобы усилить тролля за ярость.";
           latest = snapshot;
           scene?.update(snapshot);
           renderActions();
@@ -290,8 +343,17 @@ const main = (): void => {
     );
   });
   buildButton.addEventListener("click", () => {
-    const wall = definitions.find(({ id }) => id === "wall");
-    if (wall && scene) scene.setBuildMode(buildMode ? null : wall);
+    const definition = definitions.find(
+      ({ id }) => id === buildingChoice.value,
+    );
+    if (definition && scene) scene.setBuildMode(buildMode ? null : definition);
+  });
+  buildingChoice.addEventListener("change", () => {
+    scene?.setBuildMode(null);
+    renderActions();
+  });
+  trollUpgrade.addEventListener("click", () => {
+    connection?.sendIntent({ t: "upgrade", entityId: ownId });
   });
   hireButton.addEventListener("click", () => {
     scene?.setBuildMode(null);

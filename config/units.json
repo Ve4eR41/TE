@@ -8,7 +8,36 @@
     "cost": {
       "gold": 0,
       "wood": 0
-    }
+    },
+    "progression": [
+      {
+        "hp": 150,
+        "speedUnitsPerSecond": 155,
+        "cost": {
+          "gold": 0,
+          "wood": 0,
+          "rage": 30
+        }
+      },
+      {
+        "hp": 225,
+        "speedUnitsPerSecond": 165,
+        "cost": {
+          "gold": 0,
+          "wood": 0,
+          "rage": 60
+        }
+      },
+      {
+        "hp": 325,
+        "speedUnitsPerSecond": 175,
+        "cost": {
+          "gold": 0,
+          "wood": 0,
+          "rage": 90
+        }
+      }
+    ]
   },
   {
     "id": "elves",

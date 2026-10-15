@@ -1,5 +1,5 @@
 import { Container, Graphics, Text } from "pixi.js";
-import type { Entity } from "@troll-vs-elves/shared";
+import type { Entity, PlayerEntity } from "@troll-vs-elves/shared";
 
 const PALETTE = (() => ({
   troll: 0xc1a477,
@@ -10,6 +10,7 @@ export const createPlayerSprite = (
   entity: Entity,
   own: boolean,
   guard = false,
+  hero?: PlayerEntity,
 ): Container => {
   const root = new Container();
   const troll = entity.team === "troll";
@@ -85,8 +86,18 @@ export const createPlayerSprite = (
       stroke: { color: 0x152b22, width: 3 },
     },
   });
+  if (troll && hero) {
+    label.text += ` · ${hero.level} УР.`;
+    const hp = new Graphics()
+      .roundRect(-22, -64, 44, 4, 2)
+      .fill(0x1a3024)
+      .roundRect(-22, -64, (44 * hero.hp) / hero.maxHp, 4, 2)
+      .fill(0xb7ce90);
+    label.y = -69;
+    root.addChild(hp);
+  }
   label.anchor.set(0.5, 1);
-  label.position.set(0, -53);
+  label.position.set(0, troll && hero ? -69 : -53);
   root.addChild(label);
   return root;
 };

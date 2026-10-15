@@ -1,19 +1,19 @@
 # Контракт сообщений
 
-## Wire format v4 (specs 005, 009–013)
+## Wire format v5 (specs 005, 009–013a)
 
 Источник истины: [packages/shared/src/protocol.ts](../packages/shared/src/protocol.ts).
 Схемы Zod, выведенные типы и безопасные декодеры экспортируются из shared.
-Сообщения — UTF-8 JSON, только текстовые WS-кадры, строгие объекты с `v: 4` и `t`.
+Сообщения — UTF-8 JSON, только текстовые WS-кадры, строгие объекты с `v: 5` и `t`.
 
-| Направление / t | Поля кроме v и t                                                    |
-| --------------- | ------------------------------------------------------------------- |
-| Client ping     | requestId                                                           |
-| Client intent   | requestId, intent                                                   |
-| Server welcome  | playerId, roomId, match, map, buildingDefinitions, unitDefinitions  |
-| Server pong     | requestId                                                           |
-| Server error    | code, requestId?                                                    |
-| Server snapshot | tick, entities, buildings, units, resources, phase, timeLeftSeconds |
+| Направление / t | Поля кроме v и t                                                                    |
+| --------------- | ----------------------------------------------------------------------------------- |
+| Client ping     | requestId                                                                           |
+| Client intent   | requestId, intent                                                                   |
+| Server welcome  | playerId, roomId, match, map, buildingDefinitions, unitDefinitions, heroDefinitions |
+| Server pong     | requestId                                                                           |
+| Server error    | code, requestId?                                                                    |
+| Server snapshot | tick, entities, buildings, units, resources, phase, timeLeftSeconds                 |
 
 Intent: move(x,y), steer(x,y), build(buildingId,x,y), hire(unitId), upgrade(entityId),
 ability(abilityId,target?), buy(itemId), subclass(id). Координаты конечные,
@@ -63,7 +63,7 @@ Client и server декодируют внешние данные как unknown
 поэтому координаты нельзя менять через ссылку из Entity.
 Это типы TypeScript для внутреннего состояния. Они не валидируют внешний JSON,
 не проверяют игровые диапазоны HP/ресурсов и не определяют WS-сериализацию.
-Wire format v4 определён выше; базовые типы сами по себе не являются runtime-валидацией.
+Wire format v5 определён выше; базовые типы сами по себе не являются runtime-валидацией.
 
 ## Цикл матча (008)
 
@@ -141,3 +141,23 @@ INSUFFICIENT_RESOURCES, MATCH_ENDED. Строительство также уч�
 На серверном шаге юнит движется к троллю в радиусе обнаружения, останавливается
 на заданной дистанции (минимум сумма радиусов). Стены/карта блокируют прямой путь.
 Урона и обхода нет. Выход владельца удаляет его юнитов; конец матча их замораживает.
+
+## Ратуша и герой (013a, v5)
+
+`welcome.heroDefinitions: UnitConfig[]` содержит определения героев (без recruitment),
+включая progression тролля. `unitDefinitions` по-прежнему только нанимаемые юниты.
+`entities` теперь PlayerEntity: Entity + обязательный строковый ownerId, целый
+положительный level и конечная неотрицательная speedUnitsPerSecond. Состояние
+героя видят все участники; кошелёк остаётся адресным. Клиентыv4 нужно перезагрузить.
+
+Ратуша использует существующие build/upgrade и BuildingEntity, доход берётся из
+buildingDefinitions. Бонус начисляется только владельцу; level2 заменяет базовый
+бонус, если upgrade.incomePerSecond задан. Размещение, лимит и владение проверяет
+сервер. На конце таймера стройка/прокачка/доход останавливаются.
+
+`upgrade(entityId)` с ID своего тролля покупает следующий уровень из progression.
+Нельзя улучшать чужого героя (NOT_OWNER), своего эльфа (ACTION_FORBIDDEN),
+превысить список (MAX_LEVEL), потратить больше кошелька (INSUFFICIENT_RESOURCES).
+Проверки до списания, клиент не передаёт уровень, HP, скорость или стоимость.
+Увеличение HP равно приросту maxHp, скорость сразу используется сервером.
+Переподключение создаёт героя уровня1 с новым кошельком. Урона пока нет.

@@ -8,7 +8,7 @@ import {
   type UnitEntity,
   type BuildingConfig,
   type ErrorCode,
-  type Entity,
+  type PlayerEntity,
   type EconomyConfig,
   type Resources,
   type Team,
@@ -23,9 +23,8 @@ import {
 
 const MOVEMENT = (() => ({ maxCatchUpTicks: 2, steerTimeoutSeconds: 0.6 }))();
 interface Avatar {
-  entity: Entity;
+  entity: PlayerEntity;
   spawnIndex: number;
-  speed: number;
   resources: Resources;
   target?: Position;
   direction?: Position;
@@ -82,7 +81,6 @@ export class MatchRoom {
     if (!spawn || !unit) throw new Error("Cannot spawn avatar");
     this.avatars.set(playerId, {
       spawnIndex,
-      speed: unit.speedUnitsPerSecond,
       resources: { ...this.economy.starting[team] },
       steerUpdatedAt: 0,
       entity: {
@@ -92,6 +90,8 @@ export class MatchRoom {
         position: { ...spawn },
         hp: unit.hp,
         maxHp: unit.hp,
+        level: 1,
+        speedUnitsPerSecond: unit.speedUnitsPerSecond,
       },
     });
     return playerId;
@@ -126,7 +126,21 @@ export class MatchRoom {
     );
     const incomeSeconds = Math.min(deltaSeconds, remaining);
     for (const avatar of this.avatars.values()) {
-      const income = this.economy.incomePerSecond[avatar.entity.team];
+      const income = { ...this.economy.incomePerSecond[avatar.entity.team] };
+      for (const building of this.structures.values()) {
+        if (building.ownerId !== avatar.entity.id) continue;
+        const definition = this.buildingDefinitions.find(
+          ({ id }) => id === building.buildingId,
+        );
+        const bonus =
+          (building.level === 2
+            ? definition?.upgrade?.incomePerSecond
+            : undefined) ?? definition?.incomePerSecond;
+        if (!bonus) continue;
+        income.gold += bonus.gold;
+        income.wood += bonus.wood;
+        income.rage += bonus.rage;
+      }
       avatar.resources = {
         gold: avatar.resources.gold + income.gold * incomeSeconds,
         wood: avatar.resources.wood + income.wood * incomeSeconds,
@@ -144,8 +158,11 @@ export class MatchRoom {
       const distance = Math.hypot(dx, dy);
       if (!distance || movementSeconds <= 0) continue;
       const step = direction
-        ? avatar.speed * movementSeconds
-        : Math.min(distance, avatar.speed * movementSeconds);
+        ? avatar.entity.speedUnitsPerSecond * movementSeconds
+        : Math.min(
+            distance,
+            avatar.entity.speedUnitsPerSecond * movementSeconds,
+          );
       const to = {
         x: from.x + (dx / distance) * step,
         y: from.y + (dy / distance) * step,
@@ -395,6 +412,34 @@ export class MatchRoom {
     avatar: Avatar,
     entityId: string,
   ): ErrorCode | null {
+    const targetPlayer = this.avatars.get(entityId);
+    if (targetPlayer) {
+      if (entityId !== playerId) return "NOT_OWNER";
+      if (avatar.entity.team !== "troll") return "ACTION_FORBIDDEN";
+      const next = this.units.find(({ id }) => id === "troll")?.progression?.[
+        avatar.entity.level - 1
+      ];
+      if (!next) return "MAX_LEVEL";
+      if (
+        avatar.resources.gold < next.cost.gold ||
+        avatar.resources.wood < next.cost.wood ||
+        avatar.resources.rage < next.cost.rage
+      )
+        return "INSUFFICIENT_RESOURCES";
+      avatar.resources = {
+        gold: avatar.resources.gold - next.cost.gold,
+        wood: avatar.resources.wood - next.cost.wood,
+        rage: avatar.resources.rage - next.cost.rage,
+      };
+      avatar.entity = {
+        ...avatar.entity,
+        level: avatar.entity.level + 1,
+        hp: avatar.entity.hp + next.hp - avatar.entity.maxHp,
+        maxHp: next.hp,
+        speedUnitsPerSecond: next.speedUnitsPerSecond,
+      };
+      return null;
+    }
     if (avatar.entity.team !== "elves") return "ACTION_FORBIDDEN";
     const building = this.structures.get(entityId);
     if (!building) return "INVALID_TARGET";
@@ -458,6 +503,7 @@ export class MatchRoom {
       map: this.map,
       buildingDefinitions: [...this.buildingDefinitions],
       unitDefinitions: this.units.filter((unit) => unit.recruitment),
+      heroDefinitions: this.units.filter((unit) => !unit.recruitment),
     };
   }
 }

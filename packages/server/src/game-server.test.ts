@@ -73,7 +73,7 @@ describe("WS game server", () => {
       throw new Error("Missing welcome");
     first.socket.send(
       JSON.stringify({
-        v: 4,
+        v: 5,
         t: "intent",
         requestId: "walk",
         intent: { t: "move", x: 260, y: 445 },
@@ -137,14 +137,14 @@ describe("WS game server", () => {
     const client = await connect();
     expect(await client.next()).toMatchObject({
       t: "welcome",
-      v: 4,
+      v: 5,
       roomId: server.room.id,
     });
     client.socket.send(
-      JSON.stringify({ v: 4, t: "ping", requestId: "latency-1" }),
+      JSON.stringify({ v: 5, t: "ping", requestId: "latency-1" }),
     );
     expect(await client.next()).toEqual({
-      v: 4,
+      v: 5,
       t: "pong",
       requestId: "latency-1",
     });
@@ -156,20 +156,20 @@ describe("WS game server", () => {
     await client.next();
     client.socket.send('{"private-marker":');
     expect(await client.next()).toEqual({
-      v: 4,
+      v: 5,
       t: "error",
       code: "INVALID_MESSAGE",
     });
     client.socket.send(
       JSON.stringify({
-        v: 4,
+        v: 5,
         t: "intent",
         requestId: "move-1",
         intent: { t: "buy", itemId: "unit" },
       }),
     );
     expect(await client.next()).toEqual({
-      v: 4,
+      v: 5,
       t: "error",
       code: "UNSUPPORTED_INTENT",
       requestId: "move-1",
@@ -192,7 +192,7 @@ describe("WS game server", () => {
     );
     const closed = once(client.socket, "close");
     client.socket.send(
-      JSON.stringify({ v: 4, t: "ping", requestId: "backpressure" }),
+      JSON.stringify({ v: 5, t: "ping", requestId: "backpressure" }),
     );
     expect((await closed)[0]).toBe(1013);
   });
@@ -211,14 +211,14 @@ describe("WS game server", () => {
     const closed = once(client.socket, "close");
     for (let index = 0; index <= MAX_MESSAGES_PER_WINDOW; index += 1) {
       client.socket.send(
-        JSON.stringify({ v: 4, t: "ping", requestId: String(index) }),
+        JSON.stringify({ v: 5, t: "ping", requestId: String(index) }),
       );
     }
     for (let index = 0; index < MAX_MESSAGES_PER_WINDOW; index += 1) {
       expect((await client.next()).t).toBe("pong");
     }
     expect(await client.next()).toEqual({
-      v: 4,
+      v: 5,
       t: "error",
       code: "RATE_LIMITED",
     });
@@ -319,7 +319,7 @@ it("broadcasts constructed and upgraded walls while keeping wallets private", as
   await troll.next();
   elf.socket.send(
     JSON.stringify({
-      v: 4,
+      v: 5,
       t: "intent",
       requestId: "wall-1",
       intent: { t: "build", buildingId: "wall", x: 220, y: 445 },
@@ -329,7 +329,9 @@ it("broadcasts constructed and upgraded walls while keeping wallets private", as
   for (let i = 0; i < 20; i += 1) {
     const snapshot = await troll.next();
     if (snapshot.t !== "snapshot" || !snapshot.buildings.length) continue;
-    expect(snapshot.resources).toEqual({ gold: 0, wood: 0, rage: 0 });
+    expect(snapshot.resources.gold).toBe(0);
+    expect(snapshot.resources.wood).toBe(0);
+    expect(snapshot.resources.rage).toBeGreaterThanOrEqual(60);
     wallId = snapshot.buildings[0]?.id;
     expect(snapshot.buildings[0]?.ownerId).toBe(welcome.playerId);
     break;
@@ -337,7 +339,7 @@ it("broadcasts constructed and upgraded walls while keeping wallets private", as
   expect(wallId).toBeDefined();
   elf.socket.send(
     JSON.stringify({
-      v: 4,
+      v: 5,
       t: "intent",
       requestId: "upgrade-1",
       intent: { t: "upgrade", entityId: wallId },
@@ -364,7 +366,7 @@ it("shares hired guards with both clients, rejects troll hire and removes depart
   const sendHire = (client: typeof elf, requestId: string) =>
     client.socket.send(
       JSON.stringify({
-        v: 4,
+        v: 5,
         t: "intent",
         requestId,
         intent: { t: "hire", unitId: "guard" },
@@ -415,4 +417,54 @@ it("shares hired guards with both clients, rejects troll hire and removes depart
     }
   }
   expect(removed).toBe(true);
+});
+
+it("publishes town halls and troll levels to both clients while keeping upgrade wallets private", async () => {
+  const elf = await connect(true, "elves");
+  const welcome = await elf.next();
+  if (welcome.t !== "welcome") throw new Error("No welcome");
+  expect(
+    welcome.buildingDefinitions.find(({ id }) => id === "town-hall")
+      ?.incomePerSecond?.gold,
+  ).toBe(2);
+  const troll = await connect(true, "troll");
+  const trollWelcome = await troll.next();
+  if (trollWelcome.t !== "welcome") throw new Error("No welcome");
+  expect(
+    trollWelcome.heroDefinitions.find(({ id }) => id === "troll")?.progression,
+  ).toHaveLength(3);
+  elf.socket.send(
+    JSON.stringify({
+      v: 5,
+      t: "intent",
+      requestId: "hall",
+      intent: { t: "build", buildingId: "town-hall", x: 250, y: 445 },
+    }),
+  );
+  troll.socket.send(
+    JSON.stringify({
+      v: 5,
+      t: "intent",
+      requestId: "level",
+      intent: { t: "upgrade", entityId: trollWelcome.playerId },
+    }),
+  );
+  for (const client of [elf, troll]) {
+    let visible = false;
+    for (let i = 0; i < 30; i++) {
+      const snapshot = await client.next();
+      if (snapshot.t !== "snapshot" || !snapshot.buildings.length) continue;
+      const hero = snapshot.entities.find(
+        ({ id }) => id === trollWelcome.playerId,
+      );
+      if (hero?.level !== 2) continue;
+      expect(hero).toMatchObject({ hp: 150, speedUnitsPerSecond: 155 });
+      expect(snapshot.buildings[0]?.buildingId).toBe("town-hall");
+      if (client === elf) expect(snapshot.resources.rage).toBe(0);
+      else expect(snapshot.resources.rage).toBeLessThan(40);
+      visible = true;
+      break;
+    }
+    expect(visible).toBe(true);
+  }
 });

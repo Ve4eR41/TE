@@ -39,7 +39,7 @@ const makeEntity = () => ({
 });
 const makeSnapshot = () => ({
   tick: 0,
-  entities: [makeEntity()],
+  entities: [{ ...makeEntity(), level: 1, speedUnitsPerSecond: 145 }],
   buildings: [],
   units: [],
   resources: { gold: 0, wood: 0, rage: 0 },
@@ -47,7 +47,7 @@ const makeSnapshot = () => ({
   timeLeftSeconds: 1800,
 });
 
-describe("protocol v4", () => {
+describe("protocol v5", () => {
   it.each([
     { t: "move", x: 1, y: -2 },
     { t: "steer", x: 1, y: 0 },
@@ -60,33 +60,34 @@ describe("protocol v4", () => {
     { t: "subclass", id: "warrior" },
   ])("validates intent %j", (intent) => {
     expect(intentSchema.parse(intent)).toEqual(intent);
-    const message = { v: 4, t: "intent", requestId: "request", intent };
+    const message = { v: 5, t: "intent", requestId: "request", intent };
     expect(decodeClientMessage(JSON.stringify(message))).toEqual(message);
   });
 
   it("decodes ping and every server message", () => {
-    const ping = { v: 4, t: "ping", requestId: "request" };
+    const ping = { v: 5, t: "ping", requestId: "request" };
     expect(decodeClientMessage(JSON.stringify(ping))).toEqual(ping);
     const messages = [
       {
-        v: 4,
+        v: 5,
         t: "welcome",
         playerId: "player",
         roomId: "room",
         map: makeMap(),
         buildingDefinitions: [],
         unitDefinitions: [],
+        heroDefinitions: [],
         match: {
           durationSeconds: 1800,
           tickRateHz: 20,
           phaseStartSeconds: [0, 600, 1200],
         },
       },
-      { v: 4, t: "pong", requestId: "request" },
-      { v: 4, t: "error", code: "INVALID_MESSAGE" },
-      { v: 4, t: "error", code: "UNSUPPORTED_INTENT", requestId: "request" },
-      { v: 4, t: "error", code: "RATE_LIMITED" },
-      { v: 4, t: "snapshot", ...makeSnapshot() },
+      { v: 5, t: "pong", requestId: "request" },
+      { v: 5, t: "error", code: "INVALID_MESSAGE" },
+      { v: 5, t: "error", code: "UNSUPPORTED_INTENT", requestId: "request" },
+      { v: 5, t: "error", code: "RATE_LIMITED" },
+      { v: 5, t: "snapshot", ...makeSnapshot() },
     ];
     for (const message of messages)
       expect(decodeServerMessage(JSON.stringify(message))).toEqual(message);
@@ -97,9 +98,9 @@ describe("protocol v4", () => {
     "null",
     "[]",
     '"text"',
-    '{"v":3,"t":"ping","requestId":"r"}',
-    '{"v":4,"t":"unknown"}',
-    '{"v":4,"t":"ping","requestId":"r","damage":100}',
+    '{"v":4,"t":"ping","requestId":"r"}',
+    '{"v":5,"t":"unknown"}',
+    '{"v":5,"t":"ping","requestId":"r","damage":100}',
   ])("rejects invalid client data %s", (text) =>
     expect(decodeClientMessage(text)).toBeNull(),
   );
@@ -108,7 +109,7 @@ describe("protocol v4", () => {
     "rejects ID %j",
     (requestId) => {
       expect(
-        clientMessageSchema.safeParse({ v: 4, t: "ping", requestId }).success,
+        clientMessageSchema.safeParse({ v: 5, t: "ping", requestId }).success,
       ).toBe(false);
     },
   );
@@ -130,7 +131,7 @@ describe("protocol v4", () => {
   });
 
   it("uses UTF-8 byte size limits and rejects oversized server data", () => {
-    const text = JSON.stringify({ v: 4, t: "ping", requestId: "id" });
+    const text = JSON.stringify({ v: 5, t: "ping", requestId: "id" });
     expect(
       decodeClientMessage(text + " ".repeat(MAX_MESSAGE_BYTES - text.length)),
     ).not.toBeNull();
@@ -163,10 +164,10 @@ describe("protocol v4", () => {
     { phase: 4 },
     { resources: { gold: -1, wood: 0, rage: 0 } },
     { timeLeftSeconds: -1 },
-    { entities: [makeEntity(), makeEntity()] },
+    { entities: [makeSnapshot().entities[0], makeSnapshot().entities[0]] },
     {
       entities: Array.from({ length: MAX_SNAPSHOT_ENTITIES + 1 }, (_, id) => ({
-        ...makeEntity(),
+        ...makeSnapshot().entities[0],
         id: String(id),
       })),
     },
@@ -180,12 +181,12 @@ describe("protocol v4", () => {
     expect(decodeServerMessage("{")).toBeNull();
     expect(
       decodeServerMessage(
-        JSON.stringify({ v: 4, t: "pong", requestId: "r", extra: 1 }),
+        JSON.stringify({ v: 5, t: "pong", requestId: "r", extra: 1 }),
       ),
     ).toBeNull();
     expect(
       decodeServerMessage(
-        JSON.stringify({ v: 4, t: "error", code: "INVENTED" }),
+        JSON.stringify({ v: 5, t: "error", code: "INVENTED" }),
       ),
     ).toBeNull();
   });

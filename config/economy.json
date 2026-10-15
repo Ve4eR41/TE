@@ -3,7 +3,7 @@
     "troll": {
       "gold": 0,
       "wood": 0,
-      "rage": 0
+      "rage": 60
     },
     "elves": {
       "gold": 120,
@@ -15,7 +15,7 @@
     "troll": {
       "gold": 0,
       "wood": 0,
-      "rage": 0
+      "rage": 3
     },
     "elves": {
       "gold": 2,
