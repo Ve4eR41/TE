@@ -50,6 +50,7 @@ export const startGameServer = async (options: GameServerOptions) => {
       sockets.emit("connection", webSocket, request);
     });
   });
+  const subscribers = new Map<string, (message: ServerMessage) => void>();
   sockets.on("connection", (socket) => {
     const playerId = room.join();
     let windowStart = performance.now();
@@ -66,9 +67,15 @@ export const startGameServer = async (options: GameServerOptions) => {
       }
       socket.send(text);
     };
-    socket.on("close", () => room.leave(playerId));
+    socket.on("close", () => {
+      room.leave(playerId);
+      subscribers.delete(playerId);
+    });
     // ws closes malformed/oversized frames itself; avoid an unhandled error event.
-    socket.on("error", () => room.leave(playerId));
+    socket.on("error", () => {
+      room.leave(playerId);
+      subscribers.delete(playerId);
+    });
     socket.on("message", (data, isBinary) => {
       if (isBinary) {
         socket.close(SOCKET_CLOSE.unsupportedData);
@@ -100,6 +107,7 @@ export const startGameServer = async (options: GameServerOptions) => {
       }
     });
     send(room.welcome(playerId));
+    subscribers.set(playerId, send);
   });
 
   try {
@@ -119,9 +127,21 @@ export const startGameServer = async (options: GameServerOptions) => {
     throw error;
   }
 
+  let previousTime = performance.now();
+  const loop = setInterval(() => {
+    const now = performance.now();
+    room.advance((now - previousTime) / 1_000);
+    previousTime = now;
+    if (room.size) {
+      const snapshot = room.snapshot();
+      for (const send of subscribers.values()) send(snapshot);
+    }
+  }, 1_000 / options.config.match.tickRateHz);
+
   let stopPromise: Promise<void> | undefined;
   const stop = (): Promise<void> => {
     stopPromise ??= (async () => {
+      clearInterval(loop);
       for (const client of sockets.clients) client.terminate();
       await Promise.all([
         new Promise<void>((resolve, reject) =>

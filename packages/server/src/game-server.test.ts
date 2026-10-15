@@ -30,14 +30,14 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-const connect = async () => {
+const connect = async (includeSnapshots = false) => {
   const socket = new WebSocket(baseUrl.replace("http:", "ws:") + "/ws");
   const queued: ServerMessage[] = [];
   const waiting: ((message: ServerMessage) => void)[] = [];
   socket.on("message", (data) => {
     const message = decodeServerMessage(data.toString());
     expect(message).not.toBeNull();
-    if (!message) return;
+    if (!message || (message.t === "snapshot" && !includeSnapshots)) return;
     const waiter = waiting.shift();
     if (waiter) waiter(message);
     else queued.push(message);
@@ -53,6 +53,11 @@ const connect = async () => {
 };
 
 describe("WS game server", () => {
+  it("streams authoritative snapshots after welcome", async () => {
+    const client = await connect(true);
+    expect((await client.next()).t).toBe("welcome");
+    expect(await client.next()).toMatchObject({ t: "snapshot", phase: 1 });
+  });
   it("serves health and rejects unknown HTTP routes/methods", async () => {
     expect(await (await fetch(baseUrl + "/health")).json()).toEqual({
       status: "ok",
