@@ -1,4 +1,5 @@
 import "./styles.css";
+import type { ForestMap } from "@troll-vs-elves/shared";
 import { connectToServer, getWebSocketUrl } from "./connection.js";
 import { createForestScene } from "./forest-scene.js";
 
@@ -54,22 +55,26 @@ const main = (): void => {
         latency.textContent = `PING ${milliseconds} мс`;
       },
       onWelcome: (message) => {
+        if (!disposeScene) showScene(message.map);
         session.textContent = `Комната подключена · матч ${Math.round(message.match.durationSeconds / 60)} мин`;
       },
     });
   });
-  void createForestScene(scene)
-    .then((cleanup) => {
-      if (disposed) cleanup();
-      else {
-        disposeScene = cleanup;
-        sceneStatus.hidden = true;
-      }
-    })
-    .catch(() => {
-      sceneStatus.textContent =
-        "Не удалось отрисовать лес. Попробуйте браузер с поддержкой WebGL.";
-    });
+  const showScene = (map: ForestMap): void => {
+    void createForestScene(scene, map)
+      .then((cleanup) => {
+        if (disposed) cleanup();
+        else {
+          disposeScene = cleanup;
+          sceneStatus.hidden = true;
+        }
+      })
+      .catch(() => {
+        sceneStatus.textContent =
+          "Не удалось отрисовать лес. Попробуйте браузер с поддержкой WebGL.";
+      });
+  };
+  sceneStatus.textContent = "Нажмите «Подключиться», чтобы войти в лес";
   window.addEventListener(
     "pagehide",
     () => {

@@ -56,3 +56,6 @@ export type {
   ServerMessage,
   Snapshot,
 } from "./protocol.js";
+
+export { forestMapSchema, isWalkable } from "./map.js";
+export type { ForestMap } from "./map.js";

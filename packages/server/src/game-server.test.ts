@@ -7,7 +7,7 @@ import {
   MAX_MESSAGES_PER_WINDOW,
   type ServerMessage,
 } from "@troll-vs-elves/shared";
-import { loadConfig } from "@troll-vs-elves/shared/config/node";
+import { loadConfig, loadMap } from "@troll-vs-elves/shared/config/node";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import { startGameServer } from "./game-server.js";
@@ -19,7 +19,11 @@ beforeEach(async () => {
   const config = loadConfig(
     fileURLToPath(new URL("../../../config/", import.meta.url)),
   );
-  server = await startGameServer({ config, port: 0 });
+  server = await startGameServer({
+    config,
+    map: loadMap(fileURLToPath(new URL("../../../config/", import.meta.url))),
+    port: 0,
+  });
   const address = server.httpServer.address();
   if (!address || typeof address === "string")
     throw new Error("No TCP address");
@@ -73,14 +77,14 @@ describe("WS game server", () => {
     const client = await connect();
     expect(await client.next()).toMatchObject({
       t: "welcome",
-      v: 1,
+      v: 2,
       roomId: server.room.id,
     });
     client.socket.send(
-      JSON.stringify({ v: 1, t: "ping", requestId: "latency-1" }),
+      JSON.stringify({ v: 2, t: "ping", requestId: "latency-1" }),
     );
     expect(await client.next()).toEqual({
-      v: 1,
+      v: 2,
       t: "pong",
       requestId: "latency-1",
     });
@@ -92,20 +96,20 @@ describe("WS game server", () => {
     await client.next();
     client.socket.send('{"private-marker":');
     expect(await client.next()).toEqual({
-      v: 1,
+      v: 2,
       t: "error",
       code: "INVALID_MESSAGE",
     });
     client.socket.send(
       JSON.stringify({
-        v: 1,
+        v: 2,
         t: "intent",
         requestId: "move-1",
         intent: { t: "move", x: 1, y: 2 },
       }),
     );
     expect(await client.next()).toEqual({
-      v: 1,
+      v: 2,
       t: "error",
       code: "UNSUPPORTED_INTENT",
       requestId: "move-1",
@@ -128,7 +132,7 @@ describe("WS game server", () => {
     );
     const closed = once(client.socket, "close");
     client.socket.send(
-      JSON.stringify({ v: 1, t: "ping", requestId: "backpressure" }),
+      JSON.stringify({ v: 2, t: "ping", requestId: "backpressure" }),
     );
     expect((await closed)[0]).toBe(1013);
   });
@@ -147,14 +151,14 @@ describe("WS game server", () => {
     const closed = once(client.socket, "close");
     for (let index = 0; index <= MAX_MESSAGES_PER_WINDOW; index += 1) {
       client.socket.send(
-        JSON.stringify({ v: 1, t: "ping", requestId: String(index) }),
+        JSON.stringify({ v: 2, t: "ping", requestId: String(index) }),
       );
     }
     for (let index = 0; index < MAX_MESSAGES_PER_WINDOW; index += 1) {
       expect((await client.next()).t).toBe("pong");
     }
     expect(await client.next()).toEqual({
-      v: 1,
+      v: 2,
       t: "error",
       code: "RATE_LIMITED",
     });
@@ -209,6 +213,7 @@ describe("WS game server", () => {
           abilities: [],
         },
         port: address.port,
+        map: server.room.map,
       }),
     ).rejects.toMatchObject({ code: "EADDRINUSE" });
   });

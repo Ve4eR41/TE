@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = (() => 1 as const)();
+export const PROTOCOL_VERSION = (() => 2 as const)();
 export const MAX_MESSAGE_BYTES = (() => 64 * 1024)();
 export const MAX_IDENTIFIER_LENGTH = (() => 64)();
 export const MAX_SNAPSHOT_ENTITIES = (() => 128)();

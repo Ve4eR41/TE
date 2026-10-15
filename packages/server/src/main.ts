@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { loadConfig } from "@troll-vs-elves/shared/config/node";
+import { loadConfig, loadMap } from "@troll-vs-elves/shared/config/node";
 import { SERVER_DEFAULTS } from "./constants.js";
 import { startGameServer } from "./game-server.js";
 
@@ -12,7 +12,12 @@ export const main = async (): Promise<void> => {
     fileURLToPath(new URL("../../../config/", import.meta.url));
   const config = loadConfig(configDir);
   const host = process.env.HOST ?? SERVER_DEFAULTS.host;
-  const server = await startGameServer({ config, host, port });
+  const server = await startGameServer({
+    config,
+    map: loadMap(configDir),
+    host,
+    port,
+  });
   const address = server.httpServer.address();
   if (address && typeof address !== "string")
     console.log(`Game server ready at http://${host}:${address.port}`);

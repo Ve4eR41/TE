@@ -1,3 +1,19 @@
+// Fixture kept outside the shipped entry point.
+export const makeMap = () => ({
+  id: "forest" as const,
+  width: 960,
+  height: 700,
+  bounds: { left: 100, right: 870, top: 140, bottom: 640 },
+  avatarRadius: 14,
+  spawns: [
+    { x: 160, y: 445 },
+    { x: 570, y: 385 },
+  ],
+  trees: [],
+  pond: { x: 765, y: 530, radiusX: 119, radiusY: 76 },
+  obstacles: [{ x: 455, y: 305, radiusX: 55, radiusY: 46 }],
+});
+
 import { describe, expect, it } from "vitest";
 import {
   MAX_IDENTIFIER_LENGTH,
@@ -29,7 +45,7 @@ const makeSnapshot = () => ({
   timeLeftSeconds: 1800,
 });
 
-describe("protocol v1", () => {
+describe("protocol v2", () => {
   it.each([
     { t: "move", x: 1, y: -2 },
     { t: "build", buildingId: "wall", x: 1, y: 2 },
@@ -41,30 +57,31 @@ describe("protocol v1", () => {
     { t: "subclass", id: "warrior" },
   ])("validates intent %j", (intent) => {
     expect(intentSchema.parse(intent)).toEqual(intent);
-    const message = { v: 1, t: "intent", requestId: "request", intent };
+    const message = { v: 2, t: "intent", requestId: "request", intent };
     expect(decodeClientMessage(JSON.stringify(message))).toEqual(message);
   });
 
   it("decodes ping and every server message", () => {
-    const ping = { v: 1, t: "ping", requestId: "request" };
+    const ping = { v: 2, t: "ping", requestId: "request" };
     expect(decodeClientMessage(JSON.stringify(ping))).toEqual(ping);
     const messages = [
       {
-        v: 1,
+        v: 2,
         t: "welcome",
         playerId: "player",
         roomId: "room",
+        map: makeMap(),
         match: {
           durationSeconds: 1800,
           tickRateHz: 20,
           phaseStartSeconds: [0, 600, 1200],
         },
       },
-      { v: 1, t: "pong", requestId: "request" },
-      { v: 1, t: "error", code: "INVALID_MESSAGE" },
-      { v: 1, t: "error", code: "UNSUPPORTED_INTENT", requestId: "request" },
-      { v: 1, t: "error", code: "RATE_LIMITED" },
-      { v: 1, t: "snapshot", ...makeSnapshot() },
+      { v: 2, t: "pong", requestId: "request" },
+      { v: 2, t: "error", code: "INVALID_MESSAGE" },
+      { v: 2, t: "error", code: "UNSUPPORTED_INTENT", requestId: "request" },
+      { v: 2, t: "error", code: "RATE_LIMITED" },
+      { v: 2, t: "snapshot", ...makeSnapshot() },
     ];
     for (const message of messages)
       expect(decodeServerMessage(JSON.stringify(message))).toEqual(message);
@@ -75,9 +92,9 @@ describe("protocol v1", () => {
     "null",
     "[]",
     '"text"',
-    '{"v":2,"t":"ping","requestId":"r"}',
-    '{"v":1,"t":"unknown"}',
-    '{"v":1,"t":"ping","requestId":"r","damage":100}',
+    '{"v":3,"t":"ping","requestId":"r"}',
+    '{"v":2,"t":"unknown"}',
+    '{"v":2,"t":"ping","requestId":"r","damage":100}',
   ])("rejects invalid client data %s", (text) =>
     expect(decodeClientMessage(text)).toBeNull(),
   );
@@ -86,7 +103,7 @@ describe("protocol v1", () => {
     "rejects ID %j",
     (requestId) => {
       expect(
-        clientMessageSchema.safeParse({ v: 1, t: "ping", requestId }).success,
+        clientMessageSchema.safeParse({ v: 2, t: "ping", requestId }).success,
       ).toBe(false);
     },
   );
@@ -108,7 +125,7 @@ describe("protocol v1", () => {
   });
 
   it("uses UTF-8 byte size limits and rejects oversized server data", () => {
-    const text = JSON.stringify({ v: 1, t: "ping", requestId: "id" });
+    const text = JSON.stringify({ v: 2, t: "ping", requestId: "id" });
     expect(
       decodeClientMessage(text + " ".repeat(MAX_MESSAGE_BYTES - text.length)),
     ).not.toBeNull();
@@ -158,12 +175,12 @@ describe("protocol v1", () => {
     expect(decodeServerMessage("{")).toBeNull();
     expect(
       decodeServerMessage(
-        JSON.stringify({ v: 1, t: "pong", requestId: "r", extra: 1 }),
+        JSON.stringify({ v: 2, t: "pong", requestId: "r", extra: 1 }),
       ),
     ).toBeNull();
     expect(
       decodeServerMessage(
-        JSON.stringify({ v: 1, t: "error", code: "INVENTED" }),
+        JSON.stringify({ v: 2, t: "error", code: "INVENTED" }),
       ),
     ).toBeNull();
   });

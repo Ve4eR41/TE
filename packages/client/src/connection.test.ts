@@ -1,3 +1,19 @@
+// Fixture kept outside the shipped entry point.
+export const makeMap = () => ({
+  id: "forest" as const,
+  width: 960,
+  height: 700,
+  bounds: { left: 100, right: 870, top: 140, bottom: 640 },
+  avatarRadius: 14,
+  spawns: [
+    { x: 160, y: 445 },
+    { x: 570, y: 385 },
+  ],
+  trees: [],
+  pond: { x: 765, y: 530, radiusX: 119, radiusY: 76 },
+  obstacles: [{ x: 455, y: 305, radiusX: 55, radiusY: 46 }],
+});
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { decodeClientMessage } from "@troll-vs-elves/shared";
 import {
@@ -35,10 +51,11 @@ const makeObserver = () => ({
 });
 const welcome = () =>
   JSON.stringify({
-    v: 1,
+    v: 2,
     t: "welcome",
     playerId: "player",
     roomId: "room",
+    map: makeMap(),
     match: {
       durationSeconds: 1800,
       tickRateHz: 20,
@@ -89,10 +106,10 @@ describe("browser connection lifecycle", () => {
     const ping = decodeClientMessage(socket.sent[0] ?? "");
     expect(ping?.t).toBe("ping");
     vi.advanceTimersByTime(25);
-    socket.receive(JSON.stringify({ v: 1, t: "pong", requestId: "stale" }));
+    socket.receive(JSON.stringify({ v: 2, t: "pong", requestId: "stale" }));
     expect(observer.onLatency).not.toHaveBeenCalled();
     socket.receive(
-      JSON.stringify({ v: 1, t: "pong", requestId: ping?.requestId }),
+      JSON.stringify({ v: 2, t: "pong", requestId: ping?.requestId }),
     );
     expect(observer.onLatency).toHaveBeenCalledWith(25);
     socket.receive(welcome());

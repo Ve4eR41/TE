@@ -8,6 +8,7 @@ import {
   MESSAGE_WINDOW_MS,
   PROTOCOL_VERSION,
   type GameConfig,
+  type ForestMap,
   type ServerMessage,
 } from "@troll-vs-elves/shared";
 import { WebSocket, WebSocketServer } from "ws";
@@ -16,12 +17,13 @@ import { MatchRoom } from "./match-room.js";
 
 export interface GameServerOptions {
   config: GameConfig;
+  map: ForestMap;
   host?: string;
   port?: number;
 }
 
 export const startGameServer = async (options: GameServerOptions) => {
-  const room = new MatchRoom(options.config.match);
+  const room = new MatchRoom(options.config.match, options.map);
   const httpServer = createServer((request, response) => {
     if (request.method === "GET" && request.url === "/health") {
       response.writeHead(200, {

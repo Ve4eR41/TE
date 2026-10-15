@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { forestMapSchema } from "./map.js";
 import { matchSchema } from "./config/schemas.js";
 import {
   MAX_IDENTIFIER_LENGTH,
@@ -95,6 +96,7 @@ export const serverMessageSchema = (() =>
       playerId: idSchema,
       roomId: idSchema,
       match: matchSchema,
+      map: forestMapSchema,
     }),
     z.strictObject({
       v: z.literal(PROTOCOL_VERSION),

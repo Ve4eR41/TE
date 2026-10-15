@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   PROTOCOL_VERSION,
   type MatchConfig,
+  type ForestMap,
   type ServerMessage,
   type Snapshot,
 } from "@troll-vs-elves/shared";
@@ -12,7 +13,10 @@ export class MatchRoom {
   private tick = 0;
   private readonly playerIds = new Set<string>();
 
-  constructor(readonly match: MatchConfig) {}
+  constructor(
+    readonly match: MatchConfig,
+    readonly map: ForestMap,
+  ) {}
 
   get size(): number {
     return this.playerIds.size;
@@ -67,6 +71,7 @@ export class MatchRoom {
       playerId,
       roomId: this.id,
       match: this.match,
+      map: this.map,
     };
   }
 }

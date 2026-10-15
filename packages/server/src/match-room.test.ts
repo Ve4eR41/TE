@@ -1,3 +1,19 @@
+// Fixture kept outside the shipped entry point.
+export const makeMap = () => ({
+  id: "forest" as const,
+  width: 960,
+  height: 700,
+  bounds: { left: 100, right: 870, top: 140, bottom: 640 },
+  avatarRadius: 14,
+  spawns: [
+    { x: 160, y: 445 },
+    { x: 570, y: 385 },
+  ],
+  trees: [],
+  pond: { x: 765, y: 530, radiusX: 119, radiusY: 76 },
+  obstacles: [{ x: 455, y: 305, radiusX: 55, radiusY: 46 }],
+});
+
 import { describe, expect, it } from "vitest";
 import { MatchRoom } from "./match-room.js";
 
@@ -8,7 +24,7 @@ const match = (() => ({
 }))();
 describe("match clock", () => {
   it("starts on join, switches at phase boundaries and stops at zero", () => {
-    const room = new MatchRoom(match);
+    const room = new MatchRoom(match, makeMap());
     room.advance(600);
     expect(room.snapshot().tick).toBe(0);
     room.join();
@@ -24,7 +40,7 @@ describe("match clock", () => {
     expect(room.snapshot().timeLeftSeconds).toBe(0);
   });
   it("resets when empty and ignores invalid deltas", () => {
-    const room = new MatchRoom(match);
+    const room = new MatchRoom(match, makeMap());
     const player = room.join();
     room.advance(30);
     room.advance(NaN);

@@ -1,3 +1,4 @@
+import type { ForestMap } from "@troll-vs-elves/shared";
 import { Application, Container, Graphics, TilingSprite } from "pixi.js";
 
 const WORLD = (() => ({ width: 960, height: 700, tile: 64 }))();
@@ -71,6 +72,7 @@ const stone = (x: number, y: number, rotation: number): Graphics => {
 
 export const createForestScene = async (
   host: HTMLElement,
+  map: ForestMap,
 ): Promise<() => void> => {
   const app = new Application();
   try {
@@ -108,7 +110,7 @@ export const createForestScene = async (
   const texture = app.renderer.generateTexture(grass);
   grass.destroy();
   world.addChild(
-    new TilingSprite({ texture, width: WORLD.width, height: WORLD.height }),
+    new TilingSprite({ texture, width: map.width, height: map.height }),
   );
   world.addChild(
     new Graphics()
@@ -140,11 +142,14 @@ export const createForestScene = async (
       .lineTo(755 + index * 10, 504 + index * 9)
       .stroke({ width: 1.5, color: 0x9cc4a0, alpha: 0.25 });
   }
+  water.pivot.set(765, 530);
+  water.position.set(map.pond.x, map.pond.y);
+  water.scale.set(map.pond.radiusX / 119, map.pond.radiusY / 76);
   world.addChild(water);
   const details = new Graphics();
   for (let index = 0; index < 60; index += 1) {
-    const x = (index * 163 + 92) % WORLD.width;
-    const y = (index * 251 + 130) % WORLD.height;
+    const x = (index * 163 + 92) % map.width;
+    const y = (index * 251 + 130) % map.height;
     details.ellipse(x, y, 6, 3).fill({ color: 0x213c2a, alpha: 0.6 });
     if (index % 4 === 0) details.circle(x, y - 2, 2).fill(0xb9b46b);
   }
@@ -169,25 +174,7 @@ export const createForestScene = async (
     );
   }
 
-  const trees: { x: number; y: number; scale: number; ancient?: boolean }[] =
-    [];
-  for (let index = 0; index < 11; index += 1) {
-    trees.push({ x: index * 96 + 12, y: 75 + (index % 3) * 28, scale: 1.3 });
-    trees.push({ x: index * 98 - 10, y: 700 + (index % 3) * 20, scale: 1.4 });
-  }
-  for (let index = 0; index < 6; index += 1) {
-    trees.push({ x: 20 + (index % 2) * 50, y: 180 + index * 75, scale: 1.4 });
-    trees.push({ x: 925 + (index % 2) * 25, y: 240 + index * 74, scale: 1.2 });
-  }
-  trees.push(
-    { x: 180, y: 225, scale: 1.1 },
-    { x: 250, y: 190, scale: 1.3 },
-    { x: 660, y: 180, scale: 1.3 },
-    { x: 710, y: 220, scale: 0.9 },
-    { x: 290, y: 565, scale: 0.9 },
-    { x: 370, y: 610, scale: 1.2 },
-    { x: 455, y: 295, scale: 1.9, ancient: true },
-  );
+  const trees = [...map.trees];
   trees
     .sort((left, right) => left.y - right.y)
     .forEach(({ x, y, scale, ancient }) =>
@@ -213,13 +200,13 @@ export const createForestScene = async (
   world.addChild(motes);
   const fit = (): void => {
     const scale = Math.min(
-      app.screen.width / WORLD.width,
-      app.screen.height / WORLD.height,
+      app.screen.width / map.width,
+      app.screen.height / map.height,
     );
     world.scale.set(scale);
     world.position.set(
-      (app.screen.width - WORLD.width * scale) / 2,
-      (app.screen.height - WORLD.height * scale) / 2,
+      (app.screen.width - map.width * scale) / 2,
+      (app.screen.height - map.height * scale) / 2,
     );
   };
   const observer = new ResizeObserver(() => {
