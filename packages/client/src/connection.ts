@@ -29,9 +29,13 @@ const getActionError = (code: ErrorCode): string | undefined =>
 
 const TIMING = (() => ({ pingIntervalMs: 2_000, timeoutMs: 8_000 }))();
 export type ConnectionState =
-  "connecting" | "connected" | "disconnected" | "error";
+  "connecting" | "connected" | "retrying" | "disconnected" | "error";
 export interface ConnectionObserver {
-  onState: (state: ConnectionState, detail?: string) => void;
+  onState: (
+    state: ConnectionState,
+    detail?: string,
+    retryable?: boolean,
+  ) => void;
   onLatency: (milliseconds: number) => void;
   onSnapshot?: (snapshot: Snapshot) => void;
   onRejection?: (detail: string) => void;
@@ -65,22 +69,27 @@ export const connectToServer = (
     clearInterval(intervalId);
     pending = undefined;
   };
-  const finish = (state: "disconnected" | "error", detail?: string): void => {
+  const finish = (
+    state: "disconnected" | "error",
+    detail?: string,
+    retryable = false,
+  ): void => {
     if (finished) return;
     finished = true;
     clearTimers();
     socket.close();
-    observer.onState(state, detail);
+    if (retryable) observer.onState(state, detail, true);
+    else observer.onState(state, detail);
   };
   const timeoutId = setTimeout(
-    () => finish("error", "Сервер не ответил. Попробуйте ещё раз."),
+    () => finish("error", "Сервер не ответил. Попробуйте ещё раз.", true),
     TIMING.timeoutMs,
   );
   const ping = (): void => {
     if (socket.readyState !== WebSocket.OPEN || finished) return;
     if (pending) {
       if (performance.now() - pending.started >= TIMING.timeoutMs)
-        finish("error", "Связь с сервером потеряна.");
+        finish("error", "Связь с сервером потеряна.", true);
       return;
     }
     sequence += 1;
@@ -135,10 +144,10 @@ export const connectToServer = (
     }
   });
   socket.addEventListener("error", () =>
-    finish("error", "Сервер недоступен. Попробуйте подключиться позже."),
+    finish("error", "Сервер недоступен. Попробуйте подключиться позже.", true),
   );
   socket.addEventListener("close", () =>
-    finish("disconnected", "Соединение закрыто"),
+    finish("disconnected", "Соединение закрыто", true),
   );
   return Object.assign(() => finish("disconnected", "Вы вышли из леса"), {
     sendIntent: (intent: Intent): boolean => {

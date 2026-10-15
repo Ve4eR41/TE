@@ -20,6 +20,10 @@ module.exports = (() =>
       },
     },
     {
+      files: ["tools/**/*.mjs"],
+      languageOptions: { globals: globals.node },
+    },
+    {
       files: ["**/*.cjs"],
       languageOptions: { globals: globals.node },
       rules: { "@typescript-eslint/no-require-imports": "off" },

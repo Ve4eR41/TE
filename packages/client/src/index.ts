@@ -1,10 +1,7 @@
 import "./styles.css";
 import type { Snapshot, Team, BuildingConfig } from "@troll-vs-elves/shared";
-import {
-  connectToServer,
-  getWebSocketUrl,
-  type GameConnection,
-} from "./connection.js";
+import { getWebSocketUrl, type GameConnection } from "./connection.js";
+import { connectWithRetry } from "./reconnecting-connection.js";
 import { createForestScene, type ForestScene } from "./forest-scene.js";
 
 const element = <T extends HTMLElement>(selector: string): T => {
@@ -102,8 +99,7 @@ const main = (): void => {
       return;
     }
     clearScene();
-    const current = generation;
-    connection = connectToServer(
+    connection = connectWithRetry(
       getWebSocketUrl(
         window.location.href,
         roleChoice.value === "auto" ? undefined : (roleChoice.value as Team),
@@ -117,14 +113,20 @@ const main = (): void => {
               ? "Вы в лесу. Выберите, куда идти."
               : "Подключаемся к лесу…");
           button.textContent =
-            state === "connecting"
+            state === "connecting" || state === "retrying"
               ? "Отменить подключение"
               : state === "connected"
                 ? "Выйти из леса"
                 : "Войти в лес ↗";
-          if (state === "error" || state === "disconnected") {
-            connection = undefined;
+          if (
+            state === "retrying" ||
+            state === "error" ||
+            state === "disconnected"
+          ) {
+            if (state !== "retrying") connection = undefined;
             clearScene();
+            sceneStatus.textContent =
+              detail ?? "Нажмите «Войти в лес», чтобы начать";
             latency.textContent = "PING —";
             session.textContent =
               "Лесная крепость · строительство готово, бой — следующий этап";
@@ -138,6 +140,7 @@ const main = (): void => {
           actionStatus.textContent = detail;
         },
         onWelcome: (message) => {
+          const current = generation;
           ownId = message.playerId;
           definitions = message.buildingDefinitions;
           sceneStatus.textContent = "Пробуждаем лес…";

@@ -22,6 +22,8 @@ import {
   type ConnectionObserver,
 } from "./connection.js";
 
+import { connectWithRetry } from "./reconnecting-connection.js";
+
 const sockets = (() => [] as TestWebSocket[])();
 class TestWebSocket extends EventTarget {
   static readonly OPEN = 1;
@@ -138,6 +140,7 @@ describe("browser connection lifecycle", () => {
     expect(observer.onState).toHaveBeenLastCalledWith(
       "error",
       expect.any(String),
+      true,
     );
     expect(latestSocket().readyState).toBe(3);
     expect(vi.getTimerCount()).toBe(0);
@@ -152,6 +155,7 @@ describe("browser connection lifecycle", () => {
     expect(observer.onState).toHaveBeenLastCalledWith(
       "error",
       expect.any(String),
+      true,
     );
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -176,6 +180,7 @@ describe("browser connection lifecycle", () => {
     expect(observer.onState).toHaveBeenLastCalledWith(
       "disconnected",
       expect.any(String),
+      true,
     );
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -270,4 +275,121 @@ it.each([
   expect(observer.onState).toHaveBeenLastCalledWith("connected");
   expect(connection.sendIntent({ t: "move", x: 260, y: 445 })).toBe(true);
   connection();
+});
+
+describe("reconnecting transport", () => {
+  it("caps retry delay and creates only one socket for each attempt", () => {
+    const observer = makeObserver();
+    const connection = connectWithRetry("ws://test/ws?team=elves", observer);
+    for (const delay of [2000, 4000, 8000, 10000, 10000]) {
+      const count = sockets.length;
+      latestSocket().dispatchEvent(new Event("error"));
+      expect(observer.onState).toHaveBeenLastCalledWith(
+        "retrying",
+        expect.stringContaining(`${delay / 1000} с`),
+      );
+      expect(vi.getTimerCount()).toBe(1);
+      expect(connection.sendIntent({ t: "move", x: 200, y: 445 })).toBe(false);
+      vi.advanceTimersByTime(delay - 1);
+      expect(sockets).toHaveLength(count);
+      vi.advanceTimersByTime(1);
+      expect(sockets).toHaveLength(count + 1);
+      expect(latestSocket().url).toBe("ws://test/ws?team=elves");
+    }
+    connection();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("rejoins after a server close and sends to the new socket only", () => {
+    const observer = { ...makeObserver(), onSnapshot: vi.fn() };
+    const connection = connectWithRetry("ws://test/ws", observer);
+    const first = latestSocket();
+    first.receive(welcome());
+    first.close();
+    vi.advanceTimersByTime(2000);
+    const second = latestSocket();
+    second.receive(welcome());
+    expect(observer.onWelcome).toHaveBeenCalledTimes(2);
+    expect(observer.onState).toHaveBeenLastCalledWith(
+      "connected",
+      expect.stringContaining("Связь восстановлена"),
+    );
+    expect(connection.sendIntent({ t: "move", x: 200, y: 445 })).toBe(true);
+    expect(first.sent).toHaveLength(1);
+    expect(decodeClientMessage(second.sent.at(-1) ?? "")).toMatchObject({
+      t: "intent",
+    });
+    first.receive(welcome());
+    expect(observer.onWelcome).toHaveBeenCalledTimes(2);
+    second.close();
+    vi.advanceTimersByTime(2000);
+    expect(sockets).toHaveLength(3); // A successful welcome resets backoff.
+    connection();
+  });
+
+  it("cancels a scheduled retry and makes repeated cancellation harmless", () => {
+    const observer = makeObserver();
+    const connection = connectWithRetry("ws://test/ws", observer);
+    latestSocket().dispatchEvent(new Event("error"));
+    connection();
+    connection();
+    vi.advanceTimersByTime(60000);
+    expect(sockets).toHaveLength(1);
+    expect(observer.onState).toHaveBeenLastCalledWith(
+      "disconnected",
+      "Вы вышли из леса",
+    );
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("cancels an in-flight retry, including its handshake timeout", () => {
+    const observer = makeObserver();
+    const connection = connectWithRetry("ws://test/ws", observer);
+    latestSocket().dispatchEvent(new Event("error"));
+    vi.advanceTimersByTime(2000);
+    connection();
+    latestSocket().receive(welcome());
+    vi.advanceTimersByTime(60000);
+    expect(observer.onWelcome).not.toHaveBeenCalled();
+    expect(sockets).toHaveLength(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(["ROLE_TAKEN", "ROOM_FULL", "RATE_LIMITED", "INVALID_MESSAGE"])(
+    "does not retry application error %s",
+    (code) => {
+      const observer = makeObserver();
+      connectWithRetry("ws://test/ws", observer);
+      latestSocket().receive(JSON.stringify({ v: 3, t: "error", code }));
+      vi.advanceTimersByTime(60000);
+      expect(sockets).toHaveLength(1);
+      expect(observer.onState).toHaveBeenLastCalledWith(
+        "error",
+        expect.any(String),
+      );
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it("does not retry a malformed protocol message", () => {
+    connectWithRetry("ws://test/ws", makeObserver());
+    latestSocket().receive("{");
+    vi.advanceTimersByTime(60000);
+    expect(sockets).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(["welcome", "pong"])("retries a missing %s", (missing) => {
+    const observer = makeObserver();
+    const connection = connectWithRetry("ws://test/ws", observer);
+    if (missing === "pong") latestSocket().receive(welcome());
+    vi.advanceTimersByTime(8000);
+    expect(observer.onState).toHaveBeenLastCalledWith(
+      "retrying",
+      expect.any(String),
+    );
+    vi.advanceTimersByTime(2000);
+    expect(sockets).toHaveLength(2);
+    connection();
+  });
 });
