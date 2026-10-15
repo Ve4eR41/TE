@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_SNAPSHOT_ENTITIES } from "../constants.js";
 
 const idSchema = (() =>
   z
@@ -82,12 +83,23 @@ export const unitSchema = (() =>
   }))();
 
 export const buildingSchema = (() =>
-  z.strictObject({
-    id: idSchema,
-    name: nameSchema,
-    hp: z.number().int().positive(),
-    cost: costSchema,
-  }))();
+  z
+    .strictObject({
+      id: idSchema,
+      name: nameSchema,
+      hp: z.number().int().positive(),
+      cost: costSchema,
+      radius: z.number().finite().positive(),
+      buildRangeUnits: z.number().finite().positive(),
+      maxPerPlayer: z.number().int().positive().max(MAX_SNAPSHOT_ENTITIES),
+      upgrade: z
+        .strictObject({ hp: z.number().int().positive(), cost: costSchema })
+        .optional(),
+    })
+    .refine(
+      (building) => !building.upgrade || building.upgrade.hp > building.hp,
+      { path: ["upgrade", "hp"], message: "Upgrade HP must exceed base HP" },
+    ))();
 
 export const itemSchema = (() =>
   z.strictObject({ id: idSchema, name: nameSchema, cost: costSchema }))();

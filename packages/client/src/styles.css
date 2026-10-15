@@ -609,3 +609,64 @@ footer p {
     font-size: 9px;
   }
 }
+
+.construction-panel {
+  padding: 17px 25px;
+  background: #142b23;
+  border-top: 1px solid #b7cb8d26;
+}
+.construction-heading {
+  display: flex;
+  justify-content: space-between;
+  color: #b7c99d;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  margin-bottom: 12px;
+}
+.construction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.construction-actions button {
+  min-height: 42px;
+  border: 1px solid #aac48766;
+  border-radius: 5px;
+  padding: 10px 14px;
+  background: #263f2e;
+  color: #d3e3b4;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.construction-actions button[aria-pressed="true"] {
+  background: #bcd295;
+  color: #19301f;
+  border-color: #d4e2af;
+}
+.construction-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.construction-panel p {
+  font-size: 10px;
+  line-height: 1.6;
+  margin: 9px 0 0;
+  color: #a7b99a;
+}
+#action-status {
+  color: #d0d9ae;
+  min-height: 32px;
+}
+@media (max-width: 760px) {
+  .construction-panel {
+    padding: 15px;
+  }
+  .construction-actions {
+    gap: 7px;
+  }
+  .construction-actions button {
+    padding: 10px;
+    font-size: 10px;
+  }
+}

@@ -1,9 +1,12 @@
 import type {
   ForestMap,
+  BuildingConfig,
+  BuildingEntity,
   Snapshot,
   Intent,
   Position,
 } from "@troll-vs-elves/shared";
+import { createBuildingSprite } from "./building-sprite.js";
 import { createPlayerSprite } from "./player-sprite.js";
 import { Application, Container, Graphics, TilingSprite } from "pixi.js";
 
@@ -90,6 +93,7 @@ const KEYS = (() =>
   ]))();
 export interface ForestScene {
   update: (snapshot: Snapshot) => void;
+  setBuildMode: (definition: BuildingConfig | null) => void;
   destroy: () => void;
 }
 
@@ -98,6 +102,10 @@ export const createForestScene = async (
   map: ForestMap,
   playerId: string,
   sendIntent: (intent: Intent) => void,
+  callbacks: {
+    onSelect: (id: string | null) => void;
+    onBuildModeChange: (enabled: boolean) => void;
+  },
 ): Promise<ForestScene> => {
   const app = new Application();
   try {
@@ -246,6 +254,30 @@ export const createForestScene = async (
     string,
     { root: Container; from: Position; target: Position }
   >();
+  const structures = new Map<
+    string,
+    { root: Container; state: BuildingEntity }
+  >();
+  let buildDefinition: BuildingConfig | null = null;
+  let selectedId: string | null = null;
+  const ghost = new Graphics();
+  ghost.zIndex = map.height + 1;
+  ghost.visible = false;
+  world.addChild(ghost);
+  const selectionMarker = new Graphics();
+  selectionMarker.zIndex = map.height + 1;
+  world.addChild(selectionMarker);
+  const setBuildMode = (definition: BuildingConfig | null): void => {
+    buildDefinition = definition;
+    ghost.clear();
+    ghost.visible = false;
+    if (definition)
+      ghost
+        .circle(0, 0, definition.radius)
+        .fill({ color: COLORS.gold, alpha: 0.2 })
+        .stroke({ color: COLORS.gold, width: 2, alpha: 0.8 });
+    callbacks.onBuildModeChange(Boolean(definition));
+  };
   let receivedAt = performance.now();
   const targetMarker = new Graphics();
   targetMarker.zIndex = map.height;
@@ -262,6 +294,10 @@ export const createForestScene = async (
     sendIntent({ t: "steer", x, y });
   };
   const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.code === "Escape") {
+      setBuildMode(null);
+      return;
+    }
     if (
       !KEYS.has(event.code) ||
       event.ctrlKey ||
@@ -304,6 +340,17 @@ export const createForestScene = async (
       (((event.clientY - rect.top) * app.screen.height) / rect.height -
         world.y) /
       world.scale.y;
+    if (buildDefinition) {
+      sendIntent({ t: "build", buildingId: buildDefinition.id, x, y });
+      return;
+    }
+    const hit = [...structures.values()].find(
+      ({ state }) =>
+        Math.hypot(state.position.x - x, state.position.y - y) <= state.radius,
+    );
+    selectedId = hit?.state.id ?? null;
+    callbacks.onSelect(selectedId);
+    if (hit) return;
     sendIntent({ t: "move", x, y });
     targetMarker
       .clear()
@@ -314,6 +361,24 @@ export const createForestScene = async (
     markerUntil = performance.now() + 900;
     app.canvas.focus({ preventScroll: true });
   };
+  const onPointerMove = (event: PointerEvent): void => {
+    if (!buildDefinition) return;
+    const rect = app.canvas.getBoundingClientRect();
+    ghost.position.set(
+      (((event.clientX - rect.left) * app.screen.width) / rect.width -
+        world.x) /
+        world.scale.x,
+      (((event.clientY - rect.top) * app.screen.height) / rect.height -
+        world.y) /
+        world.scale.y,
+    );
+    ghost.visible = true;
+  };
+  const onPointerLeave = (): void => {
+    ghost.visible = false;
+  };
+  app.canvas.addEventListener("pointermove", onPointerMove);
+  app.canvas.addEventListener("pointerleave", onPointerLeave);
   app.canvas.tabIndex = 0;
   app.canvas.setAttribute(
     "aria-label",
@@ -347,8 +412,46 @@ export const createForestScene = async (
     motes.y = Math.sin(elapsed * 0.4) * 4;
   });
   return {
+    setBuildMode,
     update: (snapshot) => {
       receivedAt = performance.now();
+      const buildingIds = new Set(snapshot.buildings.map(({ id }) => id));
+      for (const [id, structure] of structures) {
+        if (!buildingIds.has(id)) {
+          structure.root.destroy({ children: true });
+          structures.delete(id);
+        }
+      }
+      for (const building of snapshot.buildings) {
+        const existing = structures.get(building.id);
+        if (
+          existing?.state.level === building.level &&
+          existing.state.hp === building.hp
+        )
+          continue;
+        existing?.root.destroy({ children: true });
+        const root = createBuildingSprite(
+          building,
+          building.ownerId === playerId,
+        );
+        root.position.set(building.position.x, building.position.y);
+        root.zIndex = building.position.y;
+        world.addChild(root);
+        structures.set(building.id, { root, state: building });
+      }
+      selectionMarker.clear();
+      const selected = selectedId
+        ? structures.get(selectedId)?.state
+        : undefined;
+      if (selected)
+        selectionMarker
+          .ellipse(
+            selected.position.x,
+            selected.position.y + 2,
+            selected.radius + 4,
+            selected.radius * 0.7,
+          )
+          .stroke({ width: 2, color: COLORS.gold });
       const ids = new Set(snapshot.entities.map(({ id }) => id));
       for (const [id, player] of players) {
         if (!ids.has(id)) {
@@ -381,6 +484,8 @@ export const createForestScene = async (
       window.removeEventListener("blur", stopSteering);
       document.removeEventListener("visibilitychange", onVisibility);
       app.canvas.removeEventListener("pointerdown", onPointer);
+      app.canvas.removeEventListener("pointermove", onPointerMove);
+      app.canvas.removeEventListener("pointerleave", onPointerLeave);
       observer.disconnect();
       app.destroy(true, { children: true });
       texture.destroy(true);

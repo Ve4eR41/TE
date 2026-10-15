@@ -3,6 +3,10 @@ import {
   PROTOCOL_VERSION,
   canWalkSegment,
   isWalkable,
+  MAX_SNAPSHOT_ENTITIES,
+  type BuildingEntity,
+  type BuildingConfig,
+  type ErrorCode,
   type Entity,
   type EconomyConfig,
   type Resources,
@@ -31,6 +35,7 @@ export class MatchRoom {
   readonly id = randomUUID();
   private elapsedSeconds = 0;
   private tick = 0;
+  private readonly structures = new Map<string, BuildingEntity>();
   private readonly avatars = new Map<string, Avatar>();
 
   constructor(
@@ -38,6 +43,7 @@ export class MatchRoom {
     readonly map: ForestMap,
     readonly units: readonly UnitConfig[],
     readonly economy: EconomyConfig,
+    readonly buildingDefinitions: readonly BuildingConfig[] = [],
   ) {
     for (const team of ["troll", "elves"] as const) {
       if (
@@ -90,6 +96,9 @@ export class MatchRoom {
   }
 
   leave(playerId: string): void {
+    for (const [id, structure] of this.structures) {
+      if (structure.ownerId === playerId) this.structures.delete(id);
+    }
     this.avatars.delete(playerId);
     if (!this.size) {
       this.elapsedSeconds = 0;
@@ -136,21 +145,22 @@ export class MatchRoom {
         x: from.x + (dx / distance) * step,
         y: from.y + (dy / distance) * step,
       };
-      if (canWalkSegment(this.map, from, to))
+      if (canWalkSegment(this.collisionMap, from, to))
         avatar.entity = { ...avatar.entity, position: to };
       else delete avatar.target;
     }
     this.tick += 1;
   }
 
-  intent(
-    playerId: string,
-    intent: Intent,
-  ): "UNSUPPORTED_INTENT" | "INVALID_TARGET" | null {
+  intent(playerId: string, intent: Intent): ErrorCode | null {
     const avatar = this.avatars.get(playerId);
     if (!avatar) return "INVALID_TARGET";
+    if (this.elapsedSeconds >= this.match.durationSeconds) return "MATCH_ENDED";
+    if (intent.t === "build") return this.build(playerId, avatar, intent);
+    if (intent.t === "upgrade")
+      return this.upgrade(playerId, avatar, intent.entityId);
     if (intent.t === "move") {
-      if (!isWalkable(this.map, intent)) return "INVALID_TARGET";
+      if (!isWalkable(this.collisionMap, intent)) return "INVALID_TARGET";
       avatar.target = { x: intent.x, y: intent.y };
       delete avatar.direction;
       return null;
@@ -162,6 +172,124 @@ export class MatchRoom {
       return null;
     }
     return "UNSUPPORTED_INTENT";
+  }
+
+  private get collisionMap(): ForestMap {
+    return {
+      ...this.map,
+      obstacles: [
+        ...this.map.obstacles,
+        ...[...this.structures.values()].map((building) => ({
+          ...building.position,
+          radiusX: building.radius,
+          radiusY: building.radius,
+        })),
+      ],
+    };
+  }
+
+  private build(
+    playerId: string,
+    avatar: Avatar,
+    intent: Extract<Intent, { t: "build" }>,
+  ): ErrorCode | null {
+    if (avatar.entity.team !== "elves") return "ACTION_FORBIDDEN";
+    const definition = this.buildingDefinitions.find(
+      ({ id }) => id === intent.buildingId,
+    );
+    if (!definition) return "INVALID_BUILDING";
+    const position = { x: intent.x, y: intent.y };
+    if (
+      Math.hypot(
+        position.x - avatar.entity.position.x,
+        position.y - avatar.entity.position.y,
+      ) > definition.buildRangeUnits
+    )
+      return "OUT_OF_RANGE";
+    const ownCount = [...this.structures.values()].filter(
+      (building) =>
+        building.ownerId === playerId && building.buildingId === definition.id,
+    ).length;
+    if (
+      ownCount >= definition.maxPerPlayer ||
+      this.structures.size >= MAX_SNAPSHOT_ENTITIES - this.map.spawns.length
+    )
+      return "BUILD_LIMIT_REACHED";
+    if (
+      !isWalkable(
+        { ...this.collisionMap, avatarRadius: definition.radius },
+        position,
+      ) ||
+      this.map.spawns.some(
+        (spawn) =>
+          Math.hypot(spawn.x - position.x, spawn.y - position.y) <=
+          definition.radius + this.map.avatarRadius,
+      ) ||
+      [...this.avatars.values()].some(
+        ({ entity }) =>
+          Math.hypot(
+            entity.position.x - position.x,
+            entity.position.y - position.y,
+          ) <=
+          definition.radius + this.map.avatarRadius,
+      )
+    )
+      return "INVALID_TARGET";
+    if (
+      avatar.resources.gold < definition.cost.gold ||
+      avatar.resources.wood < definition.cost.wood
+    )
+      return "INSUFFICIENT_RESOURCES";
+    const id = randomUUID();
+    avatar.resources = {
+      ...avatar.resources,
+      gold: avatar.resources.gold - definition.cost.gold,
+      wood: avatar.resources.wood - definition.cost.wood,
+    };
+    this.structures.set(id, {
+      id,
+      ownerId: playerId,
+      team: "elves",
+      position,
+      hp: definition.hp,
+      maxHp: definition.hp,
+      buildingId: definition.id,
+      radius: definition.radius,
+      level: 1,
+    });
+    return null;
+  }
+
+  private upgrade(
+    playerId: string,
+    avatar: Avatar,
+    entityId: string,
+  ): ErrorCode | null {
+    if (avatar.entity.team !== "elves") return "ACTION_FORBIDDEN";
+    const building = this.structures.get(entityId);
+    if (!building) return "INVALID_TARGET";
+    if (building.ownerId !== playerId) return "NOT_OWNER";
+    const definition = this.buildingDefinitions.find(
+      ({ id }) => id === building.buildingId,
+    );
+    if (!definition?.upgrade || building.level === 2) return "MAX_LEVEL";
+    if (
+      Math.hypot(
+        building.position.x - avatar.entity.position.x,
+        building.position.y - avatar.entity.position.y,
+      ) > definition.buildRangeUnits
+    )
+      return "OUT_OF_RANGE";
+    const { cost, hp } = definition.upgrade;
+    if (avatar.resources.gold < cost.gold || avatar.resources.wood < cost.wood)
+      return "INSUFFICIENT_RESOURCES";
+    avatar.resources = {
+      ...avatar.resources,
+      gold: avatar.resources.gold - cost.gold,
+      wood: avatar.resources.wood - cost.wood,
+    };
+    this.structures.set(entityId, { ...building, hp, maxHp: hp, level: 2 });
+    return null;
   }
 
   snapshot(playerId?: string): Extract<ServerMessage, { t: "snapshot" }> {
@@ -176,6 +304,7 @@ export class MatchRoom {
       t: "snapshot",
       tick: this.tick,
       entities: [...this.avatars.values()].map(({ entity }) => entity),
+      buildings: [...this.structures.values()],
       resources: {
         ...(this.avatars.get(playerId ?? "")?.resources ?? {
           gold: 0,
@@ -196,6 +325,7 @@ export class MatchRoom {
       roomId: this.id,
       match: this.match,
       map: this.map,
+      buildingDefinitions: [...this.buildingDefinitions],
     };
   }
 }

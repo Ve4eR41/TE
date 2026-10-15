@@ -28,6 +28,7 @@ export const startGameServer = async (options: GameServerOptions) => {
     options.map,
     options.config.units,
     options.config.economy,
+    options.config.buildings,
   );
   const httpServer = createServer((request, response) => {
     if (request.method === "GET" && request.url === "/health") {
@@ -47,7 +48,15 @@ export const startGameServer = async (options: GameServerOptions) => {
     perMessageDeflate: false,
   });
   httpServer.on("upgrade", (request, socket, head) => {
-    const url = new URL(request.url ?? "/", "http://localhost");
+    let url: URL;
+    try {
+      url = new URL(request.url ?? "/", "http://localhost");
+    } catch {
+      socket.end(
+        "HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+      );
+      return;
+    }
     if (url.pathname !== "/ws") {
       socket.end(
         "HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",

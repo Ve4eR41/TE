@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "id": "wall",
+    "name": "Лесная стена",
+    "hp": 200,
+    "radius": 24,
+    "buildRangeUnits": 160,
+    "maxPerPlayer": 6,
+    "cost": {
+      "gold": 30,
+      "wood": 40
+    },
+    "upgrade": {
+      "hp": 400,
+      "cost": {
+        "gold": 40,
+        "wood": 30
+      }
+    }
+  }
+]

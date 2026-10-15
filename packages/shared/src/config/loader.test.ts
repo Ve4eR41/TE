@@ -36,6 +36,9 @@ const makeData = () => ({
   buildings: [
     {
       id: "test-wall",
+      radius: 24,
+      buildRangeUnits: 160,
+      maxPerPlayer: 6,
       name: "Test wall",
       hp: 100,
       cost: { gold: 0, wood: 10 },
@@ -264,4 +267,16 @@ it("reports the resource path for invalid economy and rejects unknown resources"
   expect(() =>
     loadConfig(makeFixture({ economy: { ...data, extra: true } })),
   ).toThrow(ConfigError);
+});
+
+it.each([
+  { radius: 0 },
+  { buildRangeUnits: -1 },
+  { maxPerPlayer: 129 },
+  { upgrade: { hp: 100, cost: { gold: 1, wood: 1 } } },
+])("rejects invalid building data %j", (change) => {
+  const root = makeFixture({
+    buildings: [{ ...makeData().buildings[0], ...change }],
+  });
+  expect(getError(root).filePath).toContain("buildings.json");
 });

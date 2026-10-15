@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { forestMapSchema } from "./map.js";
-import { matchSchema } from "./config/schemas.js";
+import { matchSchema, buildingsSchema } from "./config/schemas.js";
 import {
   MAX_IDENTIFIER_LENGTH,
   MAX_MESSAGE_BYTES,
@@ -58,6 +58,14 @@ export const entitySchema = (() =>
       message: "HP exceeds maxHp",
     }))();
 
+export const buildingEntitySchema = (() =>
+  entitySchema.safeExtend({
+    ownerId: idSchema,
+    buildingId: idSchema,
+    radius: z.number().finite().positive(),
+    level: z.union([z.literal(1), z.literal(2)]),
+  }))();
+
 export const snapshotSchema = (() =>
   z.strictObject({
     tick: z.number().int().nonnegative(),
@@ -68,6 +76,14 @@ export const snapshotSchema = (() =>
         (entities) =>
           new Set(entities.map(({ id }) => id)).size === entities.length,
         "Duplicate entity ID",
+      ),
+    buildings: z
+      .array(buildingEntitySchema)
+      .max(MAX_SNAPSHOT_ENTITIES)
+      .refine(
+        (buildings) =>
+          new Set(buildings.map(({ id }) => id)).size === buildings.length,
+        "Duplicate building ID",
       ),
     resources: z.strictObject({
       gold: z.number().finite().nonnegative(),
@@ -102,6 +118,7 @@ export const serverMessageSchema = (() =>
       roomId: idSchema,
       match: matchSchema,
       map: forestMapSchema,
+      buildingDefinitions: buildingsSchema,
     }),
     z.strictObject({
       v: z.literal(PROTOCOL_VERSION),
@@ -118,6 +135,14 @@ export const serverMessageSchema = (() =>
         "INVALID_TARGET",
         "ROOM_FULL",
         "ROLE_TAKEN",
+        "ACTION_FORBIDDEN",
+        "INSUFFICIENT_RESOURCES",
+        "BUILD_LIMIT_REACHED",
+        "MATCH_ENDED",
+        "INVALID_BUILDING",
+        "NOT_OWNER",
+        "MAX_LEVEL",
+        "OUT_OF_RANGE",
       ]),
       requestId: idSchema.optional(),
     }),
@@ -152,3 +177,5 @@ export const decodeClientMessage = (text: string): ClientMessage | null =>
   decodeMessage(text, clientMessageSchema);
 export const decodeServerMessage = (text: string): ServerMessage | null =>
   decodeMessage(text, serverMessageSchema);
+
+export type ErrorCode = Extract<ServerMessage, { t: "error" }>["code"];

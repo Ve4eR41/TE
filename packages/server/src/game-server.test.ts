@@ -73,7 +73,7 @@ describe("WS game server", () => {
       throw new Error("Missing welcome");
     first.socket.send(
       JSON.stringify({
-        v: 2,
+        v: 3,
         t: "intent",
         requestId: "walk",
         intent: { t: "move", x: 260, y: 445 },
@@ -137,14 +137,14 @@ describe("WS game server", () => {
     const client = await connect();
     expect(await client.next()).toMatchObject({
       t: "welcome",
-      v: 2,
+      v: 3,
       roomId: server.room.id,
     });
     client.socket.send(
-      JSON.stringify({ v: 2, t: "ping", requestId: "latency-1" }),
+      JSON.stringify({ v: 3, t: "ping", requestId: "latency-1" }),
     );
     expect(await client.next()).toEqual({
-      v: 2,
+      v: 3,
       t: "pong",
       requestId: "latency-1",
     });
@@ -156,20 +156,20 @@ describe("WS game server", () => {
     await client.next();
     client.socket.send('{"private-marker":');
     expect(await client.next()).toEqual({
-      v: 2,
+      v: 3,
       t: "error",
       code: "INVALID_MESSAGE",
     });
     client.socket.send(
       JSON.stringify({
-        v: 2,
+        v: 3,
         t: "intent",
         requestId: "move-1",
-        intent: { t: "build", buildingId: "wall", x: 1, y: 2 },
+        intent: { t: "hire", unitId: "unit" },
       }),
     );
     expect(await client.next()).toEqual({
-      v: 2,
+      v: 3,
       t: "error",
       code: "UNSUPPORTED_INTENT",
       requestId: "move-1",
@@ -192,7 +192,7 @@ describe("WS game server", () => {
     );
     const closed = once(client.socket, "close");
     client.socket.send(
-      JSON.stringify({ v: 2, t: "ping", requestId: "backpressure" }),
+      JSON.stringify({ v: 3, t: "ping", requestId: "backpressure" }),
     );
     expect((await closed)[0]).toBe(1013);
   });
@@ -211,14 +211,14 @@ describe("WS game server", () => {
     const closed = once(client.socket, "close");
     for (let index = 0; index <= MAX_MESSAGES_PER_WINDOW; index += 1) {
       client.socket.send(
-        JSON.stringify({ v: 2, t: "ping", requestId: String(index) }),
+        JSON.stringify({ v: 3, t: "ping", requestId: String(index) }),
       );
     }
     for (let index = 0; index < MAX_MESSAGES_PER_WINDOW; index += 1) {
       expect((await client.next()).t).toBe("pong");
     }
     expect(await client.next()).toEqual({
-      v: 2,
+      v: 3,
       t: "error",
       code: "RATE_LIMITED",
     });
@@ -303,3 +303,53 @@ it.each(["?team=invalid", "?team=elves&team=troll", "?unknown=1"])(
     await expect(once(socket, "open")).rejects.toThrow("400");
   },
 );
+
+it("rejects malformed upgrade URLs without stopping the server", async () => {
+  const socket = new WebSocket(baseUrl.replace("http:", "ws:") + "//[");
+  await expect(once(socket, "open")).rejects.toThrow("400");
+  expect((await fetch(baseUrl + "/health")).status).toBe(200);
+});
+
+it("broadcasts constructed and upgraded walls while keeping wallets private", async () => {
+  const elf = await connect(true, "elves");
+  const welcome = await elf.next();
+  if (welcome.t !== "welcome") throw new Error("Missing welcome");
+  expect(welcome.buildingDefinitions[0]?.id).toBe("wall");
+  const troll = await connect(true, "troll");
+  await troll.next();
+  elf.socket.send(
+    JSON.stringify({
+      v: 3,
+      t: "intent",
+      requestId: "wall-1",
+      intent: { t: "build", buildingId: "wall", x: 220, y: 445 },
+    }),
+  );
+  let wallId: string | undefined;
+  for (let i = 0; i < 20; i += 1) {
+    const snapshot = await troll.next();
+    if (snapshot.t !== "snapshot" || !snapshot.buildings.length) continue;
+    expect(snapshot.resources).toEqual({ gold: 0, wood: 0, rage: 0 });
+    wallId = snapshot.buildings[0]?.id;
+    expect(snapshot.buildings[0]?.ownerId).toBe(welcome.playerId);
+    break;
+  }
+  expect(wallId).toBeDefined();
+  elf.socket.send(
+    JSON.stringify({
+      v: 3,
+      t: "intent",
+      requestId: "upgrade-1",
+      intent: { t: "upgrade", entityId: wallId },
+    }),
+  );
+  let upgraded = false;
+  for (let i = 0; i < 20; i += 1) {
+    const snapshot = await troll.next();
+    if (snapshot.t === "snapshot" && snapshot.buildings[0]?.level === 2) {
+      upgraded = true;
+      break;
+    }
+  }
+  expect(upgraded).toBe(true);
+});

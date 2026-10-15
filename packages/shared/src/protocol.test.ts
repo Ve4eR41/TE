@@ -40,12 +40,13 @@ const makeEntity = () => ({
 const makeSnapshot = () => ({
   tick: 0,
   entities: [makeEntity()],
+  buildings: [],
   resources: { gold: 0, wood: 0, rage: 0 },
   phase: 1,
   timeLeftSeconds: 1800,
 });
 
-describe("protocol v2", () => {
+describe("protocol v3", () => {
   it.each([
     { t: "move", x: 1, y: -2 },
     { t: "steer", x: 1, y: 0 },
@@ -58,31 +59,32 @@ describe("protocol v2", () => {
     { t: "subclass", id: "warrior" },
   ])("validates intent %j", (intent) => {
     expect(intentSchema.parse(intent)).toEqual(intent);
-    const message = { v: 2, t: "intent", requestId: "request", intent };
+    const message = { v: 3, t: "intent", requestId: "request", intent };
     expect(decodeClientMessage(JSON.stringify(message))).toEqual(message);
   });
 
   it("decodes ping and every server message", () => {
-    const ping = { v: 2, t: "ping", requestId: "request" };
+    const ping = { v: 3, t: "ping", requestId: "request" };
     expect(decodeClientMessage(JSON.stringify(ping))).toEqual(ping);
     const messages = [
       {
-        v: 2,
+        v: 3,
         t: "welcome",
         playerId: "player",
         roomId: "room",
         map: makeMap(),
+        buildingDefinitions: [],
         match: {
           durationSeconds: 1800,
           tickRateHz: 20,
           phaseStartSeconds: [0, 600, 1200],
         },
       },
-      { v: 2, t: "pong", requestId: "request" },
-      { v: 2, t: "error", code: "INVALID_MESSAGE" },
-      { v: 2, t: "error", code: "UNSUPPORTED_INTENT", requestId: "request" },
-      { v: 2, t: "error", code: "RATE_LIMITED" },
-      { v: 2, t: "snapshot", ...makeSnapshot() },
+      { v: 3, t: "pong", requestId: "request" },
+      { v: 3, t: "error", code: "INVALID_MESSAGE" },
+      { v: 3, t: "error", code: "UNSUPPORTED_INTENT", requestId: "request" },
+      { v: 3, t: "error", code: "RATE_LIMITED" },
+      { v: 3, t: "snapshot", ...makeSnapshot() },
     ];
     for (const message of messages)
       expect(decodeServerMessage(JSON.stringify(message))).toEqual(message);
@@ -93,9 +95,9 @@ describe("protocol v2", () => {
     "null",
     "[]",
     '"text"',
-    '{"v":3,"t":"ping","requestId":"r"}',
-    '{"v":2,"t":"unknown"}',
-    '{"v":2,"t":"ping","requestId":"r","damage":100}',
+    '{"v":4,"t":"ping","requestId":"r"}',
+    '{"v":3,"t":"unknown"}',
+    '{"v":3,"t":"ping","requestId":"r","damage":100}',
   ])("rejects invalid client data %s", (text) =>
     expect(decodeClientMessage(text)).toBeNull(),
   );
@@ -104,7 +106,7 @@ describe("protocol v2", () => {
     "rejects ID %j",
     (requestId) => {
       expect(
-        clientMessageSchema.safeParse({ v: 2, t: "ping", requestId }).success,
+        clientMessageSchema.safeParse({ v: 3, t: "ping", requestId }).success,
       ).toBe(false);
     },
   );
@@ -126,7 +128,7 @@ describe("protocol v2", () => {
   });
 
   it("uses UTF-8 byte size limits and rejects oversized server data", () => {
-    const text = JSON.stringify({ v: 2, t: "ping", requestId: "id" });
+    const text = JSON.stringify({ v: 3, t: "ping", requestId: "id" });
     expect(
       decodeClientMessage(text + " ".repeat(MAX_MESSAGE_BYTES - text.length)),
     ).not.toBeNull();
@@ -176,12 +178,12 @@ describe("protocol v2", () => {
     expect(decodeServerMessage("{")).toBeNull();
     expect(
       decodeServerMessage(
-        JSON.stringify({ v: 2, t: "pong", requestId: "r", extra: 1 }),
+        JSON.stringify({ v: 3, t: "pong", requestId: "r", extra: 1 }),
       ),
     ).toBeNull();
     expect(
       decodeServerMessage(
-        JSON.stringify({ v: 2, t: "error", code: "INVENTED" }),
+        JSON.stringify({ v: 3, t: "error", code: "INVENTED" }),
       ),
     ).toBeNull();
   });
@@ -191,4 +193,37 @@ it("rejects steering outside the direction range", () => {
   expect(intentSchema.safeParse({ t: "steer", x: 2, y: 0 }).success).toBe(
     false,
   );
+});
+
+it("validates building states and rejects malformed or duplicate structures", () => {
+  const building = {
+    ...makeEntity(),
+    id: "wall-1",
+    buildingId: "wall",
+    radius: 24,
+    level: 1,
+  };
+  expect(
+    snapshotSchema.safeParse({ ...makeSnapshot(), buildings: [building] })
+      .success,
+  ).toBe(true);
+  for (const changes of [
+    { level: 3 },
+    { radius: -1 },
+    { hp: 11 },
+    { ownerId: null },
+  ]) {
+    expect(
+      snapshotSchema.safeParse({
+        ...makeSnapshot(),
+        buildings: [{ ...building, ...changes }],
+      }).success,
+    ).toBe(false);
+  }
+  expect(
+    snapshotSchema.safeParse({
+      ...makeSnapshot(),
+      buildings: [building, building],
+    }).success,
+  ).toBe(false);
 });

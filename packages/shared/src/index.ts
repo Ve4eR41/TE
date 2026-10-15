@@ -28,6 +28,7 @@ export type {
 } from "./config/types.js";
 export type {
   Entity,
+  BuildingEntity,
   EntityId,
   Phase,
   PlayerId,
@@ -46,6 +47,7 @@ export {
 } from "./constants.js";
 export {
   clientMessageSchema,
+  buildingEntitySchema,
   decodeClientMessage,
   decodeServerMessage,
   entitySchema,
@@ -55,6 +57,7 @@ export {
 } from "./protocol.js";
 export type {
   ClientMessage,
+  ErrorCode,
   Intent,
   ServerMessage,
   Snapshot,

@@ -24,3 +24,11 @@ export interface Entity {
   readonly hp: number;
   readonly maxHp: number;
 }
+
+/** Authoritative constructed building state. */
+export interface BuildingEntity extends Entity {
+  readonly ownerId: PlayerId;
+  readonly buildingId: string;
+  readonly radius: number;
+  readonly level: 1 | 2;
+}

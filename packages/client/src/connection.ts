@@ -2,11 +2,30 @@ import {
   decodeServerMessage,
   PROTOCOL_VERSION,
   type ClientMessage,
+  type ErrorCode,
   type Intent,
   type Snapshot,
   type Team,
   type ServerMessage,
 } from "@troll-vs-elves/shared";
+
+const ACTION_ERRORS = (() =>
+  ({
+    INVALID_TARGET: "Здесь нельзя: занято, препятствие или место появления.",
+    UNSUPPORTED_INTENT: "Это действие пока недоступно.",
+    ACTION_FORBIDDEN: "Строить и улучшать может только эльф.",
+    INSUFFICIENT_RESOURCES: "Не хватает золота или дерева. Подождите дохода.",
+    BUILD_LIMIT_REACHED: "Достигнут лимит построек.",
+    MATCH_ENDED: "Время матча вышло. Действия остановлены.",
+    INVALID_BUILDING: "Такой постройки нет.",
+    NOT_OWNER: "Можно улучшать только свою стену.",
+    MAX_LEVEL: "Стена уже улучшена до максимума.",
+    OUT_OF_RANGE: "Слишком далеко. Подойдите ближе.",
+  }) satisfies Partial<Record<ErrorCode, string>>)();
+const getActionError = (code: ErrorCode): string | undefined =>
+  code in ACTION_ERRORS
+    ? ACTION_ERRORS[code as keyof typeof ACTION_ERRORS]
+    : undefined;
 
 const TIMING = (() => ({ pingIntervalMs: 2_000, timeoutMs: 8_000 }))();
 export type ConnectionState =
@@ -98,15 +117,9 @@ export const connectToServer = (
       pending = undefined;
     } else if (message.t === "snapshot" && welcomed) {
       observer.onSnapshot?.(message);
-    } else if (
-      message.t === "error" &&
-      (message.code === "INVALID_TARGET" ||
-        message.code === "UNSUPPORTED_INTENT")
-    ) {
+    } else if (message.t === "error" && getActionError(message.code)) {
       observer.onRejection?.(
-        message.code === "INVALID_TARGET"
-          ? "Туда не пройти. Выберите свободную точку."
-          : "Это действие пока недоступно.",
+        getActionError(message.code) ?? "Действие отклонено.",
       );
     } else if (message.t === "error") {
       finish(
