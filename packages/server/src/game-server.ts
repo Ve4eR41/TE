@@ -58,7 +58,7 @@ export const startGameServer = async (options: GameServerOptions) => {
       if (socket.readyState !== WebSocket.OPEN) return;
       const text = JSON.stringify(message);
       if (
-        socket.bufferedAmount > MAX_BUFFERED_BYTES ||
+        socket.bufferedAmount + Buffer.byteLength(text) > MAX_BUFFERED_BYTES ||
         Buffer.byteLength(text) > MAX_MESSAGE_BYTES
       ) {
         socket.close(SOCKET_CLOSE.tryAgainLater);

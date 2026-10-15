@@ -2,12 +2,13 @@ import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import {
   decodeServerMessage,
+  MAX_BUFFERED_BYTES,
   MAX_MESSAGE_BYTES,
   MAX_MESSAGES_PER_WINDOW,
   type ServerMessage,
 } from "@troll-vs-elves/shared";
 import { loadConfig } from "@troll-vs-elves/shared/config/node";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import { startGameServer } from "./game-server.js";
 
@@ -26,6 +27,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await server?.stop();
+  vi.restoreAllMocks();
 });
 
 const connect = async () => {
@@ -111,6 +113,19 @@ describe("WS game server", () => {
     const closed = once(client.socket, "close");
     client.socket.send(Buffer.from("binary"));
     expect((await closed)[0]).toBe(1003);
+  });
+
+  it("accounts for the next message before exceeding the outgoing buffer limit", async () => {
+    const client = await connect();
+    await client.next();
+    vi.spyOn(WebSocket.prototype, "bufferedAmount", "get").mockReturnValue(
+      MAX_BUFFERED_BYTES - 1,
+    );
+    const closed = once(client.socket, "close");
+    client.socket.send(
+      JSON.stringify({ v: 1, t: "ping", requestId: "backpressure" }),
+    );
+    expect((await closed)[0]).toBe(1013);
   });
 
   it("closes oversized frames with code 1009", async () => {
