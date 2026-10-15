@@ -1,0 +1,26 @@
+{
+  "starting": {
+    "troll": {
+      "gold": 0,
+      "wood": 0,
+      "rage": 0
+    },
+    "elves": {
+      "gold": 120,
+      "wood": 120,
+      "rage": 0
+    }
+  },
+  "incomePerSecond": {
+    "troll": {
+      "gold": 0,
+      "wood": 0,
+      "rage": 0
+    },
+    "elves": {
+      "gold": 2,
+      "wood": 3,
+      "rage": 0
+    }
+  }
+}

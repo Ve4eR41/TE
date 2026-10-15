@@ -4,6 +4,7 @@ import {
   type ClientMessage,
   type Intent,
   type Snapshot,
+  type Team,
   type ServerMessage,
 } from "@troll-vs-elves/shared";
 
@@ -23,8 +24,9 @@ export interface GameConnection {
   sendIntent: (intent: Intent) => boolean;
 }
 
-export const getWebSocketUrl = (pageUrl: string): string => {
+export const getWebSocketUrl = (pageUrl: string, team?: Team): string => {
   const url = new URL("/ws", pageUrl);
+  if (team) url.searchParams.set("team", team);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.href;
 };
@@ -113,7 +115,9 @@ export const connectToServer = (
           ? "Слишком много запросов. Подключитесь снова."
           : message.code === "ROOM_FULL"
             ? "Лес заполнен. Попробуйте позже."
-            : "Сервер отклонил запрос.",
+            : message.code === "ROLE_TAKEN"
+              ? "Тролль уже в лесу. Выберите эльфа."
+              : "Сервер отклонил запрос.",
       );
     }
   });

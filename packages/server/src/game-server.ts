@@ -27,6 +27,7 @@ export const startGameServer = async (options: GameServerOptions) => {
     options.config.match,
     options.map,
     options.config.units,
+    options.config.economy,
   );
   const httpServer = createServer((request, response) => {
     if (request.method === "GET" && request.url === "/health") {
@@ -46,9 +47,21 @@ export const startGameServer = async (options: GameServerOptions) => {
     perMessageDeflate: false,
   });
   httpServer.on("upgrade", (request, socket, head) => {
-    if (request.url !== "/ws") {
+    const url = new URL(request.url ?? "/", "http://localhost");
+    if (url.pathname !== "/ws") {
       socket.end(
         "HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+      );
+      return;
+    }
+    const team = url.searchParams.get("team");
+    if (
+      (team !== null && team !== "troll" && team !== "elves") ||
+      [...url.searchParams.keys()].some((key) => key !== "team") ||
+      url.searchParams.getAll("team").length > 1
+    ) {
+      socket.end(
+        "HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
       );
       return;
     }
@@ -57,7 +70,19 @@ export const startGameServer = async (options: GameServerOptions) => {
     });
   });
   const subscribers = new Map<string, (message: ServerMessage) => void>();
-  sockets.on("connection", (socket) => {
+  sockets.on("connection", (socket, request) => {
+    const team = new URL(
+      request.url ?? "/ws",
+      "http://localhost",
+    ).searchParams.get("team");
+    if (team === "troll" && !room.trollAvailable) {
+      socket.on("error", () => undefined);
+      socket.send(
+        JSON.stringify({ v: PROTOCOL_VERSION, t: "error", code: "ROLE_TAKEN" }),
+      );
+      socket.close(SOCKET_CLOSE.policyViolation);
+      return;
+    }
     if (room.size >= room.map.spawns.length) {
       socket.on("error", () => undefined);
       socket.send(
@@ -66,7 +91,9 @@ export const startGameServer = async (options: GameServerOptions) => {
       socket.close(SOCKET_CLOSE.policyViolation);
       return;
     }
-    const playerId = room.join();
+    const playerId = room.join(
+      team === "troll" || team === "elves" ? team : undefined,
+    );
     let windowStart = performance.now();
     let received = 0;
     const send = (message: ServerMessage): void => {
@@ -149,8 +176,7 @@ export const startGameServer = async (options: GameServerOptions) => {
     room.advance((now - previousTime) / 1_000);
     previousTime = now;
     if (room.size) {
-      const snapshot = room.snapshot();
-      for (const send of subscribers.values()) send(snapshot);
+      for (const [playerId, send] of subscribers) send(room.snapshot(playerId));
     }
   }, 1_000 / options.config.match.tickRateHz);
 

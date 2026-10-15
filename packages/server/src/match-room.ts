@@ -4,6 +4,9 @@ import {
   canWalkSegment,
   isWalkable,
   type Entity,
+  type EconomyConfig,
+  type Resources,
+  type Team,
   type Intent,
   type Position,
   type UnitConfig,
@@ -18,6 +21,7 @@ interface Avatar {
   entity: Entity;
   spawnIndex: number;
   speed: number;
+  resources: Resources;
   target?: Position;
   direction?: Position;
   steerUpdatedAt: number;
@@ -33,6 +37,7 @@ export class MatchRoom {
     readonly match: MatchConfig,
     readonly map: ForestMap,
     readonly units: readonly UnitConfig[],
+    readonly economy: EconomyConfig,
   ) {
     for (const team of ["troll", "elves"] as const) {
       if (
@@ -46,8 +51,16 @@ export class MatchRoom {
     return this.avatars.size;
   }
 
-  join(): string {
+  get trollAvailable(): boolean {
+    return ![...this.avatars.values()].some(
+      ({ entity }) => entity.team === "troll",
+    );
+  }
+
+  join(preferredTeam?: Team): string {
     if (this.size >= this.map.spawns.length) throw new Error("Room full");
+    if (preferredTeam === "troll" && !this.trollAvailable)
+      throw new Error("Troll unavailable");
     const playerId = randomUUID();
     const spawnIndex = this.map.spawns.findIndex(
       (_, index) =>
@@ -56,16 +69,13 @@ export class MatchRoom {
         ),
     );
     const spawn = this.map.spawns[spawnIndex];
-    const team = [...this.avatars.values()].some(
-      ({ entity }) => entity.team === "troll",
-    )
-      ? "elves"
-      : "troll";
+    const team = preferredTeam ?? (this.trollAvailable ? "troll" : "elves");
     const unit = this.units.find(({ id }) => id === team);
     if (!spawn || !unit) throw new Error("Cannot spawn avatar");
     this.avatars.set(playerId, {
       spawnIndex,
       speed: unit.speedUnitsPerSecond,
+      resources: { ...this.economy.starting[team] },
       steerUpdatedAt: 0,
       entity: {
         id: playerId,
@@ -100,7 +110,14 @@ export class MatchRoom {
       this.match.durationSeconds,
       this.elapsedSeconds + deltaSeconds,
     );
+    const incomeSeconds = Math.min(deltaSeconds, remaining);
     for (const avatar of this.avatars.values()) {
+      const income = this.economy.incomePerSecond[avatar.entity.team];
+      avatar.resources = {
+        gold: avatar.resources.gold + income.gold * incomeSeconds,
+        wood: avatar.resources.wood + income.wood * incomeSeconds,
+        rage: avatar.resources.rage + income.rage * incomeSeconds,
+      };
       const from = avatar.entity.position;
       const direction =
         avatar.direction &&
@@ -147,7 +164,7 @@ export class MatchRoom {
     return "UNSUPPORTED_INTENT";
   }
 
-  snapshot(): Extract<ServerMessage, { t: "snapshot" }> {
+  snapshot(playerId?: string): Extract<ServerMessage, { t: "snapshot" }> {
     const phase: Snapshot["phase"] =
       this.elapsedSeconds >= this.match.phaseStartSeconds[2]
         ? 3
@@ -159,7 +176,13 @@ export class MatchRoom {
       t: "snapshot",
       tick: this.tick,
       entities: [...this.avatars.values()].map(({ entity }) => entity),
-      resources: { gold: 0, wood: 0, rage: 0 },
+      resources: {
+        ...(this.avatars.get(playerId ?? "")?.resources ?? {
+          gold: 0,
+          wood: 0,
+          rage: 0,
+        }),
+      },
       phase,
       timeLeftSeconds: this.match.durationSeconds - this.elapsedSeconds,
     };

@@ -34,8 +34,10 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-const connect = async (includeSnapshots = false) => {
-  const socket = new WebSocket(baseUrl.replace("http:", "ws:") + "/ws");
+const connect = async (includeSnapshots = false, team?: "troll" | "elves") => {
+  const socket = new WebSocket(
+    baseUrl.replace("http:", "ws:") + "/ws" + (team ? `?team=${team}` : ""),
+  );
   const queued: ServerMessage[] = [];
   const waiting: ((message: ServerMessage) => void)[] = [];
   socket.on("message", (data) => {
@@ -264,6 +266,7 @@ describe("WS game server", () => {
       startGameServer({
         config: {
           match: server.room.match,
+          economy: server.room.economy,
           units: [...server.room.units],
           buildings: [],
           items: [],
@@ -276,3 +279,27 @@ describe("WS game server", () => {
     ).rejects.toMatchObject({ code: "EADDRINUSE" });
   });
 });
+
+it("allows an elf first and rejects a second explicit troll", async () => {
+  const elf = await connect(true, "elves");
+  const welcome = await elf.next();
+  expect(welcome.t).toBe("welcome");
+  const snapshot = await elf.next();
+  expect(snapshot).toMatchObject({ t: "snapshot", resources: { rage: 0 } });
+  if (snapshot.t === "snapshot")
+    expect(snapshot.resources.gold).toBeGreaterThanOrEqual(120);
+  const troll = await connect(false, "troll");
+  expect((await troll.next()).t).toBe("welcome");
+  const excess = await connect(false, "troll");
+  expect(await excess.next()).toMatchObject({ t: "error", code: "ROLE_TAKEN" });
+  expect(server.room.size).toBe(2);
+});
+it.each(["?team=invalid", "?team=elves&team=troll", "?unknown=1"])(
+  "rejects invalid role query %s",
+  async (query) => {
+    const socket = new WebSocket(
+      baseUrl.replace("http:", "ws:") + "/ws" + query,
+    );
+    await expect(once(socket, "open")).rejects.toThrow("400");
+  },
+);

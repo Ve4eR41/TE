@@ -19,6 +19,20 @@ export const costSchema = (() =>
     wood: z.number().int().nonnegative(),
   }))();
 
+export const resourcesSchema = (() =>
+  z.strictObject({
+    gold: z.number().finite().nonnegative(),
+    wood: z.number().finite().nonnegative(),
+    rage: z.number().finite().nonnegative(),
+  }))();
+const teamResourcesSchema = (() =>
+  z.strictObject({ troll: resourcesSchema, elves: resourcesSchema }))();
+export const economySchema = (() =>
+  z.strictObject({
+    starting: teamResourcesSchema,
+    incomePerSecond: teamResourcesSchema,
+  }))();
+
 export const matchSchema = (() =>
   z
     .strictObject({
@@ -112,6 +126,7 @@ export const abilitiesSchema = (() => uniqueById(abilitySchema))();
 export const gameConfigSchema = (() =>
   z.strictObject({
     match: matchSchema,
+    economy: economySchema,
     units: unitsSchema,
     buildings: buildingsSchema,
     items: itemsSchema,

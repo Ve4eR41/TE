@@ -31,9 +31,19 @@ const units = (() =>
     attackDamage: 0,
     cost: { gold: 0, wood: 0 },
   })))();
+const economy = (() => ({
+  starting: {
+    troll: { gold: 0, wood: 0, rage: 0 },
+    elves: { gold: 120, wood: 120, rage: 0 },
+  },
+  incomePerSecond: {
+    troll: { gold: 0, wood: 0, rage: 0 },
+    elves: { gold: 2, wood: 3, rage: 0 },
+  },
+}))();
 describe("match clock", () => {
   it("starts on join, switches at phase boundaries and stops at zero", () => {
-    const room = new MatchRoom(match, makeMap(), units);
+    const room = new MatchRoom(match, makeMap(), units, economy);
     room.advance(600);
     expect(room.snapshot().tick).toBe(0);
     room.join();
@@ -49,7 +59,7 @@ describe("match clock", () => {
     expect(room.snapshot().timeLeftSeconds).toBe(0);
   });
   it("resets when empty and ignores invalid deltas", () => {
-    const room = new MatchRoom(match, makeMap(), units);
+    const room = new MatchRoom(match, makeMap(), units, economy);
     const player = room.join();
     room.advance(30);
     room.advance(NaN);
@@ -66,7 +76,7 @@ describe("match clock", () => {
 
 describe("authoritative avatars", () => {
   it("moves only the sender at configured speed without teleporting", () => {
-    const room = new MatchRoom(match, makeMap(), units);
+    const room = new MatchRoom(match, makeMap(), units, economy);
     const troll = room.join();
     room.join();
     const before = room.snapshot().entities;
@@ -83,7 +93,7 @@ describe("authoritative avatars", () => {
     );
   });
   it("normalizes diagonal input and expires stale steering", () => {
-    const room = new MatchRoom(match, makeMap(), units);
+    const room = new MatchRoom(match, makeMap(), units, economy);
     const player = room.join();
     room.intent(player, { t: "steer", x: 1, y: 1 });
     room.advance(0.05);
@@ -100,7 +110,7 @@ describe("authoritative avatars", () => {
   it("rejects blocked targets and stops before crossing obstacles", () => {
     const map = makeMap();
     map.obstacles = [{ x: 190, y: 445, radiusX: 2, radiusY: 2 }];
-    const room = new MatchRoom(match, map, units);
+    const room = new MatchRoom(match, map, units, economy);
     const player = room.join();
     expect(room.intent(player, { t: "move", x: 190, y: 445 })).toBe(
       "INVALID_TARGET",
@@ -113,7 +123,7 @@ describe("authoritative avatars", () => {
     expect(room.snapshot().entities[0]?.position.x).toBeLessThan(174);
   });
   it("limits capacity, removes avatars and reuses a free spawn", () => {
-    const room = new MatchRoom(match, makeMap(), units);
+    const room = new MatchRoom(match, makeMap(), units, economy);
     const first = room.join();
     const second = room.join();
     expect(() => room.join()).toThrow("Room full");
@@ -129,12 +139,52 @@ describe("authoritative avatars", () => {
     ).toBe(2);
   });
   it("freezes movement at the end of the timer", () => {
-    const room = new MatchRoom(match, makeMap(), units);
+    const room = new MatchRoom(match, makeMap(), units, economy);
     const player = room.join();
     room.advance(1800);
     const before = room.snapshot().entities[0]?.position;
     room.intent(player, { t: "move", x: 260, y: 445 });
     room.advance(1);
     expect(room.snapshot().entities[0]?.position).toEqual(before);
+  });
+});
+
+describe("private economy", () => {
+  it("accrues fractional income for each owner and stops at the match end", () => {
+    const room = new MatchRoom(match, makeMap(), units, economy);
+    const troll = room.join("troll");
+    const elf = room.join("elves");
+    room.advance(0.25);
+    expect(room.snapshot(elf).resources).toEqual({
+      gold: 120.5,
+      wood: 120.75,
+      rage: 0,
+    });
+    expect(room.snapshot(troll).resources).toEqual({
+      gold: 0,
+      wood: 0,
+      rage: 0,
+    });
+    expect(room.snapshot("unknown").resources).toEqual({
+      gold: 0,
+      wood: 0,
+      rage: 0,
+    });
+    room.advance(2000);
+    expect(room.snapshot(elf).resources.gold).toBe(3720);
+    room.advance(1);
+    expect(room.snapshot(elf).resources.gold).toBe(3720);
+  });
+  it("removes old wallets, resets on rejoin and does not expose mutable resources", () => {
+    const room = new MatchRoom(match, makeMap(), units, economy);
+    const first = room.join("elves");
+    room.advance(10);
+    const snapshot = room.snapshot(first);
+    snapshot.resources.gold = 0;
+    expect(room.snapshot(first).resources.gold).toBe(140);
+    room.leave(first);
+    const second = room.join("elves");
+    expect(room.snapshot(second).resources.gold).toBe(120);
+    expect(room.snapshot(first).resources.gold).toBe(0);
   });
 });

@@ -13,6 +13,16 @@ const makeData = () => ({
     tickRateHz: 20,
     phaseStartSeconds: [0, 600, 1200],
   },
+  economy: {
+    starting: {
+      troll: { gold: 0, wood: 0, rage: 0 },
+      elves: { gold: 120, wood: 120, rage: 0 },
+    },
+    incomePerSecond: {
+      troll: { gold: 0, wood: 0, rage: 0 },
+      elves: { gold: 2, wood: 3, rage: 0 },
+    },
+  },
   units: [
     {
       id: "test-scout",
@@ -78,17 +88,22 @@ describe("loadConfig", () => {
     expect(loadConfig(root).units).toEqual([]);
   });
 
-  it.each(["match", "units", "buildings", "items", "classes", "abilities"])(
-    "reports a missing %s.json file",
-    (name) => {
-      const root = makeFixture();
-      rmSync(join(root, `${name}.json`));
-      const error = getError(root);
-      expect(error.filePath).toBe(join(root, `${name}.json`));
-      expect(error.issues[0]?.path).toEqual([]);
-      expect(error.message).toContain(`${name}.json`);
-    },
-  );
+  it.each([
+    "match",
+    "economy",
+    "units",
+    "buildings",
+    "items",
+    "classes",
+    "abilities",
+  ])("reports a missing %s.json file", (name) => {
+    const root = makeFixture();
+    rmSync(join(root, `${name}.json`));
+    const error = getError(root);
+    expect(error.filePath).toBe(join(root, `${name}.json`));
+    expect(error.issues[0]?.path).toEqual([]);
+    expect(error.message).toContain(`${name}.json`);
+  });
 
   it("wraps read errors for a non-directory root", () => {
     const root = makeFixture();
@@ -229,4 +244,24 @@ describe("loadConfig", () => {
       JSON.parse(readFileSync(new URL("match.json", root), "utf8")),
     );
   });
+});
+
+it("reports the resource path for invalid economy and rejects unknown resources", () => {
+  const data = makeData().economy;
+  const error = getError(
+    makeFixture({
+      economy: {
+        ...data,
+        starting: {
+          ...data.starting,
+          elves: { ...data.starting.elves, gold: -1 },
+        },
+      },
+    }),
+  );
+  expect(error.filePath).toContain("economy.json");
+  expect(error.issues[0]?.path).toEqual(["starting", "elves", "gold"]);
+  expect(() =>
+    loadConfig(makeFixture({ economy: { ...data, extra: true } })),
+  ).toThrow(ConfigError);
 });

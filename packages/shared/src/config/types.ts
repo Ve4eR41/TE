@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type {
   abilitySchema,
+  economySchema,
   buildingSchema,
   classSchema,
   costSchema,
@@ -18,3 +19,5 @@ export type ItemConfig = z.infer<typeof itemSchema>;
 export type ClassConfig = z.infer<typeof classSchema>;
 export type AbilityConfig = z.infer<typeof abilitySchema>;
 export type GameConfig = z.infer<typeof gameConfigSchema>;
+
+export type EconomyConfig = z.infer<typeof economySchema>;

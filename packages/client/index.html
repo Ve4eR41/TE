@@ -37,6 +37,14 @@
               </div>
             </div>
           </div>
+          <label class="role-choice" for="role-choice"
+            >ТВОЙ ГЕРОЙ
+            <select id="role-choice">
+              <option value="auto">Автоматически</option>
+              <option value="elves">Эльф · строитель</option>
+              <option value="troll">Тролль</option>
+            </select>
+          </label>
           <button id="connect" class="connect-button" type="button">
             Войти в лес <span aria-hidden="true">↗</span>
           </button>
@@ -68,6 +76,20 @@
               <strong id="match-timer">30:00</strong
               ><small id="match-phase">ОЖИДАНИЕ</small>
             </div>
+          </div>
+          <div class="resource-bar" aria-label="Ваши ресурсы">
+            <span
+              ><i class="gold-token">◆</i> Золото
+              <strong id="resource-gold">—</strong></span
+            >
+            <span
+              ><i class="wood-token">♣</i> Дерево
+              <strong id="resource-wood">—</strong></span
+            >
+            <span
+              ><i class="rage-token">✦</i> Ярость
+              <strong id="resource-rage">—</strong></span
+            >
           </div>
           <div id="scene" role="group" aria-label="Игровая карта леса">
             <p id="scene-status" class="scene-status">Пробуждаем лес…</p>

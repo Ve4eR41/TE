@@ -1,5 +1,5 @@
 import "./styles.css";
-import type { Snapshot } from "@troll-vs-elves/shared";
+import type { Snapshot, Team } from "@troll-vs-elves/shared";
 import {
   connectToServer,
   getWebSocketUrl,
@@ -14,6 +14,10 @@ const element = <T extends HTMLElement>(selector: string): T => {
 };
 const main = (): void => {
   const button = element<HTMLButtonElement>("#connect");
+  const roleChoice = element<HTMLSelectElement>("#role-choice");
+  const gold = element("#resource-gold");
+  const wood = element("#resource-wood");
+  const rage = element("#resource-rage");
   const status = element("#status");
   const dot = element("#status-dot");
   const latency = element("#latency");
@@ -43,6 +47,9 @@ const main = (): void => {
     role.textContent = "ВАШ ГЕРОЙ";
     players.textContent = "— игроков";
     position.textContent = "";
+    gold.textContent = "—";
+    wood.textContent = "—";
+    rage.textContent = "—";
   };
   button.addEventListener("click", () => {
     if (connection) {
@@ -52,79 +59,95 @@ const main = (): void => {
     }
     clearScene();
     const current = generation;
-    connection = connectToServer(getWebSocketUrl(window.location.href), {
-      onState: (state, detail) => {
-        dot.dataset.state = state;
-        status.textContent =
-          detail ??
-          (state === "connected"
-            ? "Вы в лесу. Выберите, куда идти."
-            : "Подключаемся к лесу…");
-        button.textContent =
-          state === "connecting"
-            ? "Отменить подключение"
-            : state === "connected"
-              ? "Выйти из леса"
-              : "Войти в лес ↗";
-        if (state === "error" || state === "disconnected") {
-          connection = undefined;
-          clearScene();
-          latency.textContent = "PING —";
-          session.textContent =
-            "Прогулка по лесу · бой и постройки появятся позже";
-        }
-      },
-      onLatency: (milliseconds) => {
-        latency.textContent = `PING ${milliseconds} мс`;
-      },
-      onRejection: (detail) => {
-        status.textContent = detail;
-      },
-      onWelcome: (message) => {
-        ownId = message.playerId;
-        sceneStatus.textContent = "Пробуждаем лес…";
-        void createForestScene(host, message.map, ownId, (intent) => {
-          if (current === generation) connection?.sendIntent(intent);
-        })
-          .then((created) => {
-            if (current !== generation) {
-              created.destroy();
-              return;
-            }
-            scene = created;
-            if (latest) scene.update(latest);
-            sceneStatus.hidden = true;
-            host.dataset.connected = "true";
+    connection = connectToServer(
+      getWebSocketUrl(
+        window.location.href,
+        roleChoice.value === "auto" ? undefined : (roleChoice.value as Team),
+      ),
+      {
+        onState: (state, detail) => {
+          dot.dataset.state = state;
+          status.textContent =
+            detail ??
+            (state === "connected"
+              ? "Вы в лесу. Выберите, куда идти."
+              : "Подключаемся к лесу…");
+          button.textContent =
+            state === "connecting"
+              ? "Отменить подключение"
+              : state === "connected"
+                ? "Выйти из леса"
+                : "Войти в лес ↗";
+          if (state === "error" || state === "disconnected") {
+            connection = undefined;
+            clearScene();
+            latency.textContent = "PING —";
+            session.textContent =
+              "Прогулка по лесу · бой и постройки появятся позже";
+          }
+        },
+        onLatency: (milliseconds) => {
+          latency.textContent = `PING ${milliseconds} мс`;
+        },
+        onRejection: (detail) => {
+          status.textContent = detail;
+        },
+        onWelcome: (message) => {
+          ownId = message.playerId;
+          sceneStatus.textContent = "Пробуждаем лес…";
+          void createForestScene(host, message.map, ownId, (intent) => {
+            if (current === generation) connection?.sendIntent(intent);
           })
-          .catch(() => {
-            if (current !== generation) return;
-            connection?.();
-            sceneStatus.textContent =
-              "Не удалось отрисовать лес. Нужен браузер с поддержкой WebGL.";
-          });
+            .then((created) => {
+              if (current !== generation) {
+                created.destroy();
+                return;
+              }
+              scene = created;
+              if (latest) scene.update(latest);
+              sceneStatus.hidden = true;
+              host.dataset.connected = "true";
+            })
+            .catch(() => {
+              if (current !== generation) return;
+              connection?.();
+              sceneStatus.textContent =
+                "Не удалось отрисовать лес. Нужен браузер с поддержкой WebGL.";
+            });
+        },
+        onSnapshot: (snapshot) => {
+          gold.textContent = Math.floor(snapshot.resources.gold).toString();
+          wood.textContent = Math.floor(snapshot.resources.wood).toString();
+          rage.textContent = Math.floor(snapshot.resources.rage).toString();
+          latest = snapshot;
+          scene?.update(snapshot);
+          const seconds = Math.ceil(snapshot.timeLeftSeconds);
+          timer.textContent = `${Math.floor(seconds / 60)
+            .toString()
+            .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+          phase.textContent =
+            seconds === 0 ? "ПРОБА ЗАВЕРШЕНА" : `ФАЗА ${snapshot.phase} / 3`;
+          const own = snapshot.entities.find(
+            ({ ownerId }) => ownerId === ownId,
+          );
+          role.textContent =
+            own?.team === "troll" ? "ВЫ — ТРОЛЛЬ" : "ВЫ — ЭЛЬФ";
+          role.dataset.team = own?.team ?? "";
+          players.textContent = `В ЛЕСУ: ${snapshot.entities.length}`;
+          position.textContent = own
+            ? `X ${Math.round(own.position.x)} · Y ${Math.round(own.position.y)}`
+            : "";
+          session.textContent =
+            seconds === 0
+              ? "Время вышло · выйдите из пустой комнаты и войдите для новой пробы"
+              : "Клик / тап — идти · WASD / стрелки — движение · обходите деревья и пруд";
+        },
       },
-      onSnapshot: (snapshot) => {
-        latest = snapshot;
-        scene?.update(snapshot);
-        const seconds = Math.ceil(snapshot.timeLeftSeconds);
-        timer.textContent = `${Math.floor(seconds / 60)
-          .toString()
-          .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
-        phase.textContent =
-          seconds === 0 ? "ПРОБА ЗАВЕРШЕНА" : `ФАЗА ${snapshot.phase} / 3`;
-        const own = snapshot.entities.find(({ ownerId }) => ownerId === ownId);
-        role.textContent = own?.team === "troll" ? "ВЫ — ТРОЛЛЬ" : "ВЫ — ЭЛЬФ";
-        role.dataset.team = own?.team ?? "";
-        players.textContent = `В ЛЕСУ: ${snapshot.entities.length}`;
-        position.textContent = own
-          ? `X ${Math.round(own.position.x)} · Y ${Math.round(own.position.y)}`
-          : "";
-        session.textContent =
-          seconds === 0
-            ? "Время вышло · выйдите из пустой комнаты и войдите для новой пробы"
-            : "Клик / тап — идти · WASD / стрелки — движение · обходите деревья и пруд";
-      },
-    });
+    );
+  });
+  roleChoice.addEventListener("change", () => {
+    connection?.();
+    button.click();
   });
   window.addEventListener(
     "pagehide",

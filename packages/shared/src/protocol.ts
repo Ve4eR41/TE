@@ -117,6 +117,7 @@ export const serverMessageSchema = (() =>
         "RATE_LIMITED",
         "INVALID_TARGET",
         "ROOM_FULL",
+        "ROLE_TAKEN",
       ]),
       requestId: idSchema.optional(),
     }),

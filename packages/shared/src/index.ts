@@ -1,5 +1,7 @@
 export {
   abilitiesSchema,
+  economySchema,
+  resourcesSchema,
   abilitySchema,
   buildingSchema,
   buildingsSchema,
@@ -15,6 +17,7 @@ export {
 } from "./config/schemas.js";
 export type {
   AbilityConfig,
+  EconomyConfig,
   BuildingConfig,
   ClassConfig,
   Cost,

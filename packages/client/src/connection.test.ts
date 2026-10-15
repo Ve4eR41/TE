@@ -224,3 +224,25 @@ it("keeps an established connection after a rejected movement target", () => {
   expect(connection.sendIntent({ t: "move", x: 260, y: 445 })).toBe(true);
   connection();
 });
+
+it("sends the selected hero in the WebSocket URL without copying page parameters", () => {
+  expect(
+    getWebSocketUrl("https://example.test/game?unrelated=1", "elves"),
+  ).toBe("wss://example.test/ws?team=elves");
+  expect(getWebSocketUrl("http://localhost:5173/", "troll")).toBe(
+    "ws://localhost:5173/ws?team=troll",
+  );
+});
+
+it("explains when the troll role is already taken", () => {
+  const observer = makeObserver();
+  connectToServer("ws://test/ws?team=troll", observer);
+  latestSocket().receive(
+    JSON.stringify({ v: 2, t: "error", code: "ROLE_TAKEN" }),
+  );
+  expect(observer.onState).toHaveBeenLastCalledWith(
+    "error",
+    "Тролль уже в лесу. Выберите эльфа.",
+  );
+  expect(vi.getTimerCount()).toBe(0);
+});

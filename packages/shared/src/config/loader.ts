@@ -1,6 +1,7 @@
 import { readConfigFile } from "./read-config-file.js";
 import {
   abilitiesSchema,
+  economySchema,
   buildingsSchema,
   classesSchema,
   itemsSchema,
@@ -11,6 +12,7 @@ import type { GameConfig } from "./types.js";
 import { forestMapSchema, type ForestMap } from "../map.js";
 export const loadConfig = (rootDir: string): GameConfig => ({
   match: readConfigFile(rootDir, "match.json", matchSchema),
+  economy: readConfigFile(rootDir, "economy.json", economySchema),
   units: readConfigFile(rootDir, "units.json", unitsSchema),
   buildings: readConfigFile(rootDir, "buildings.json", buildingsSchema),
   items: readConfigFile(rootDir, "items.json", itemsSchema),
