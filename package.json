@@ -13,7 +13,8 @@
     "test": "pnpm -r test",
     "lint": "eslint . && prettier --check .",
     "build": "pnpm -r build",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "dev:server": "pnpm --filter @troll-vs-elves/shared build && pnpm --filter @troll-vs-elves/server build && pnpm --filter @troll-vs-elves/server start"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
