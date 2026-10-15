@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101e1c" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Troll vs Elves — Хранители леса</title>
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <a class="brand" href="/" aria-label="Troll vs Elves — главная"
+          ><span class="brand-mark">♧</span> TROLL
+          <span class="brand-vs">vs</span> ELVES</a
+        >
+        <span class="version">ПЕРВЫЙ РОСТОК <span>PRE-ALPHA 0.1</span></span>
+      </header>
+      <main>
+        <section class="intro" aria-labelledby="title">
+          <p class="eyebrow"><span></span> АСИММЕТРИЧНАЯ СТРАТЕГИЯ</p>
+          <h1 id="title">У леса есть<br />свои <em>защитники.</em></h1>
+          <p class="description">
+            Один могучий тролль против союза эльфов.<br />Построй крепость.
+            Сохрани Древо жизни.<br />Или стань тем, кого боится весь лес.
+          </p>
+          <div class="factions" aria-label="Стороны будущего матча">
+            <div class="faction">
+              <span class="faction-icon troll-icon">♜</span>
+              <div><strong>Тролль</strong><small>Сила и разрушение</small></div>
+            </div>
+            <span class="versus">VS</span>
+            <div class="faction">
+              <span class="faction-icon elf-icon">❧</span>
+              <div>
+                <strong>Эльфы</strong><small>Стратегия и единство</small>
+              </div>
+            </div>
+          </div>
+          <button id="connect" class="connect-button" type="button">
+            Подключиться к серверу <span aria-hidden="true">↗</span>
+          </button>
+          <p class="connection" role="status" aria-live="polite">
+            <span id="status-dot" class="status-dot"></span
+            ><span id="status">Сервер ещё не подключён</span>
+          </p>
+          <div class="milestones">
+            <span>01 <b>Подключение</b></span
+            ><span>02 <b>Мир</b></span
+            ><span>03 <b>Битва</b></span>
+          </div>
+        </section>
+        <section class="forest-panel" aria-labelledby="forest-title">
+          <div class="scene-heading">
+            <p><span class="live-dot"></span> ЛЕС ДРЕВНИХ</p>
+            <span>КОНЦЕПТ АРЕНЫ</span>
+          </div>
+          <div
+            id="scene"
+            role="img"
+            aria-label="Вид сверху на волшебный лес: Древо жизни, каменный круг, тропинки и пруд"
+          >
+            <p id="scene-status" class="scene-status">Пробуждаем лес…</p>
+          </div>
+          <div class="scene-caption">
+            <div>
+              <p class="eyebrow">СЕРДЦЕ ЭЛЬФИЙСКИХ ЗЕМЕЛЬ</p>
+              <h2 id="forest-title">Здесь начинается история.</h2>
+            </div>
+            <span class="coordinates">СЕВЕР ↑<br />ДРЕВО ЖИЗНИ ◇</span>
+          </div>
+        </section>
+      </main>
+      <footer>
+        <p><span class="footer-leaf">✦</span> Лес растёт вместе с игрой.</p>
+        <div class="connection-meta">
+          <span id="session"
+            >Сетевой прототип · бой и движение в разработке</span
+          ><span id="latency">PING —</span>
+        </div>
+      </footer>
+    </div>
+    <script type="module" src="/src/index.ts"></script>
+  </body>
+</html>

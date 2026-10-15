@@ -14,7 +14,8 @@
     "lint": "eslint . && prettier --check .",
     "build": "pnpm -r build",
     "format": "prettier --write .",
-    "dev:server": "pnpm --filter @troll-vs-elves/shared build && pnpm --filter @troll-vs-elves/server build && pnpm --filter @troll-vs-elves/server start"
+    "dev:server": "pnpm --filter @troll-vs-elves/shared build && pnpm --filter @troll-vs-elves/server build && pnpm --filter @troll-vs-elves/server start",
+    "dev:client": "pnpm --filter @troll-vs-elves/shared build && pnpm --filter @troll-vs-elves/client dev"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
