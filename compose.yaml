@@ -1,0 +1,21 @@
+services:
+  server:
+    build:
+      context: .
+      target: server
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 10s
+    expose:
+      - "3001"
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "${GAME_PORT:-8080}:8080"
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 10s

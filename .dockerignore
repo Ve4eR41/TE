@@ -1,0 +1,16 @@
+.git
+.github
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+output
+inputs
+workspace-context
+repo-knowledge
+knowledge-base
+*.log
