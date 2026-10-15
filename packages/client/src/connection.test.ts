@@ -53,12 +53,13 @@ const makeObserver = () => ({
 });
 const welcome = () =>
   JSON.stringify({
-    v: 3,
+    v: 4,
     t: "welcome",
     playerId: "player",
     roomId: "room",
     map: makeMap(),
     buildingDefinitions: [],
+    unitDefinitions: [],
     match: {
       durationSeconds: 1800,
       tickRateHz: 20,
@@ -109,10 +110,10 @@ describe("browser connection lifecycle", () => {
     const ping = decodeClientMessage(socket.sent[0] ?? "");
     expect(ping?.t).toBe("ping");
     vi.advanceTimersByTime(25);
-    socket.receive(JSON.stringify({ v: 3, t: "pong", requestId: "stale" }));
+    socket.receive(JSON.stringify({ v: 4, t: "pong", requestId: "stale" }));
     expect(observer.onLatency).not.toHaveBeenCalled();
     socket.receive(
-      JSON.stringify({ v: 3, t: "pong", requestId: ping?.requestId }),
+      JSON.stringify({ v: 4, t: "pong", requestId: ping?.requestId }),
     );
     expect(observer.onLatency).toHaveBeenCalledWith(25);
     socket.receive(welcome());
@@ -198,11 +199,12 @@ it("sends intents only while welcomed and dispatches snapshots without predictin
     intent: { t: "move", x: 260, y: 445 },
   });
   const snapshot = {
-    v: 3,
+    v: 4,
     t: "snapshot",
     tick: 1,
     entities: [],
     buildings: [],
+    units: [],
     resources: { gold: 0, wood: 0, rage: 0 },
     phase: 1,
     timeLeftSeconds: 1799,
@@ -220,7 +222,7 @@ it("keeps an established connection after a rejected movement target", () => {
   socket.receive(welcome());
   socket.receive(
     JSON.stringify({
-      v: 3,
+      v: 4,
       t: "error",
       code: "INVALID_TARGET",
       requestId: "move-1",
@@ -245,7 +247,7 @@ it("explains when the troll role is already taken", () => {
   const observer = makeObserver();
   connectToServer("ws://test/ws?team=troll", observer);
   latestSocket().receive(
-    JSON.stringify({ v: 3, t: "error", code: "ROLE_TAKEN" }),
+    JSON.stringify({ v: 4, t: "error", code: "ROLE_TAKEN" }),
   );
   expect(observer.onState).toHaveBeenLastCalledWith(
     "error",
@@ -256,6 +258,9 @@ it("explains when the troll role is already taken", () => {
 
 it.each([
   "ACTION_FORBIDDEN",
+  "INVALID_UNIT",
+  "UNIT_LIMIT_REACHED",
+  "SPAWN_BLOCKED",
   "INSUFFICIENT_RESOURCES",
   "BUILD_LIMIT_REACHED",
   "MATCH_ENDED",
@@ -269,7 +274,7 @@ it.each([
   const socket = latestSocket();
   socket.receive(welcome());
   socket.receive(
-    JSON.stringify({ v: 3, t: "error", code, requestId: "build-1" }),
+    JSON.stringify({ v: 4, t: "error", code, requestId: "build-1" }),
   );
   expect(observer.onRejection).toHaveBeenCalledWith(expect.any(String));
   expect(observer.onState).toHaveBeenLastCalledWith("connected");
@@ -360,7 +365,7 @@ describe("reconnecting transport", () => {
     (code) => {
       const observer = makeObserver();
       connectWithRetry("ws://test/ws", observer);
-      latestSocket().receive(JSON.stringify({ v: 3, t: "error", code }));
+      latestSocket().receive(JSON.stringify({ v: 4, t: "error", code }));
       vi.advanceTimersByTime(60000);
       expect(sockets).toHaveLength(1);
       expect(observer.onState).toHaveBeenLastCalledWith(

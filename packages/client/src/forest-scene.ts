@@ -457,21 +457,28 @@ export const createForestScene = async (
             selected.radius * 0.7,
           )
           .stroke({ width: 2, color: COLORS.gold });
-      const ids = new Set(snapshot.entities.map(({ id }) => id));
+      const ids = new Set(
+        [...snapshot.entities, ...snapshot.units].map(({ id }) => id),
+      );
       for (const [id, player] of players) {
         if (!ids.has(id)) {
           player.root.destroy({ children: true });
           players.delete(id);
         }
       }
-      for (const entity of snapshot.entities) {
+      for (const entity of [...snapshot.entities, ...snapshot.units]) {
         const existing = players.get(entity.id);
         if (existing) {
           existing.from = { x: existing.root.x, y: existing.root.y };
           existing.target = entity.position;
         } else {
-          const root = createPlayerSprite(entity, entity.ownerId === playerId);
-          if (entity.ownerId === playerId) root.label = playerId;
+          const guard = "unitId" in entity;
+          const root = createPlayerSprite(
+            entity,
+            entity.ownerId === playerId,
+            guard,
+          );
+          if (!guard && entity.ownerId === playerId) root.label = playerId;
           root.position.set(entity.position.x, entity.position.y);
           root.zIndex = entity.position.y;
           world.addChild(root);

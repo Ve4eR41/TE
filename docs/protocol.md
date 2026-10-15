@@ -1,19 +1,19 @@
 # Контракт сообщений
 
-## Wire format v3 (specs 005, 009–012)
+## Wire format v4 (specs 005, 009–013)
 
 Источник истины: [packages/shared/src/protocol.ts](../packages/shared/src/protocol.ts).
 Схемы Zod, выведенные типы и безопасные декодеры экспортируются из shared.
-Сообщения — UTF-8 JSON, только текстовые WS-кадры, строгие объекты с `v: 3` и `t`.
+Сообщения — UTF-8 JSON, только текстовые WS-кадры, строгие объекты с `v: 4` и `t`.
 
-| Направление / t | Поля кроме v и t                                             |
-| --------------- | ------------------------------------------------------------ |
-| Client ping     | requestId                                                    |
-| Client intent   | requestId, intent                                            |
-| Server welcome  | playerId, roomId, match, map, buildingDefinitions            |
-| Server pong     | requestId                                                    |
-| Server error    | code, requestId?                                             |
-| Server snapshot | tick, entities, buildings, resources, phase, timeLeftSeconds |
+| Направление / t | Поля кроме v и t                                                    |
+| --------------- | ------------------------------------------------------------------- |
+| Client ping     | requestId                                                           |
+| Client intent   | requestId, intent                                                   |
+| Server welcome  | playerId, roomId, match, map, buildingDefinitions, unitDefinitions  |
+| Server pong     | requestId                                                           |
+| Server error    | code, requestId?                                                    |
+| Server snapshot | tick, entities, buildings, units, resources, phase, timeLeftSeconds |
 
 Intent: move(x,y), steer(x,y), build(buildingId,x,y), hire(unitId), upgrade(entityId),
 ability(abilityId,target?), buy(itemId), subclass(id). Координаты конечные,
@@ -63,7 +63,7 @@ Client и server декодируют внешние данные как unknown
 поэтому координаты нельзя менять через ссылку из Entity.
 Это типы TypeScript для внутреннего состояния. Они не валидируют внешний JSON,
 не проверяют игровые диапазоны HP/ресурсов и не определяют WS-сериализацию.
-Wire format v3 определён выше; базовые типы сами по себе не являются runtime-валидацией.
+Wire format v4 определён выше; базовые типы сами по себе не являются runtime-валидацией.
 
 ## Цикл матча (008)
 
@@ -123,3 +123,21 @@ ACTION_FORBIDDEN (не эльф), INSUFFICIENT_RESOURCES, BUILD_LIMIT_REACHED,
 MATCH_ENDED, INVALID_BUILDING, NOT_OWNER, MAX_LEVEL, OUT_OF_RANGE,
 UNSUPPORTED_INTENT. Клиент показывает причину без закрытия соединения.
 Клиенты v2 требуют перезагрузки после обновления.
+
+## Найм стражей (013, v4)
+
+Welcome добавляет `unitDefinitions: UnitConfig[]`, только с recruitment.
+Snapshot добавляет `units: UnitEntity[]`: Entity + обязательный ownerId,
+unitId и положительный radius. Полный список общий для всех; исчезнувшие юниты
+удаляются. `entities` остаётся списком героев для камеры и числа игроков.
+Максимум128 юнитов отдельно от бюджета героев/стен; уникальные ID внутри списка.
+Текущий конфиг дополнительно ограничивает стражей тремя на каждого из8 игроков.
+Клиенты v3 требуют перезагрузки после обновления сервера.
+
+`hire(unitId)` принимает только эльф и только определение с recruitment. Сервер
+проверяет время, лимиты, средства и свободное место до списания. Ошибки без
+разрыва WS: INVALID_UNIT, UNIT_LIMIT_REACHED, SPAWN_BLOCKED, ACTION_FORBIDDEN,
+INSUFFICIENT_RESOURCES, MATCH_ENDED. Строительство также учитывает тела стражей.
+На серверном шаге юнит движется к троллю в радиусе обнаружения, останавливается
+на заданной дистанции (минимум сумма радиусов). Стены/карта блокируют прямой путь.
+Урона и обхода нет. Выход владельца удаляет его юнитов; конец матча их замораживает.

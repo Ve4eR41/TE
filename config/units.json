@@ -20,5 +20,56 @@
       "gold": 0,
       "wood": 0
     }
+  },
+  {
+    "id": "guard",
+    "name": "Лесной страж (прототип)",
+    "hp": 80,
+    "speedUnitsPerSecond": 110,
+    "attackDamage": 0,
+    "cost": {
+      "gold": 40,
+      "wood": 20
+    },
+    "recruitment": {
+      "radius": 12,
+      "maxPerPlayer": 3,
+      "aggroRangeUnits": 240,
+      "stopRangeUnits": 36,
+      "spawnOffsets": [
+        {
+          "x": 48,
+          "y": 0
+        },
+        {
+          "x": -48,
+          "y": 0
+        },
+        {
+          "x": 0,
+          "y": 48
+        },
+        {
+          "x": 0,
+          "y": -48
+        },
+        {
+          "x": 34,
+          "y": 34
+        },
+        {
+          "x": -34,
+          "y": 34
+        },
+        {
+          "x": 34,
+          "y": -34
+        },
+        {
+          "x": -34,
+          "y": -34
+        }
+      ]
+    }
   }
 ]

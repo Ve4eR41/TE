@@ -5,6 +5,7 @@ import {
   isWalkable,
   MAX_SNAPSHOT_ENTITIES,
   type BuildingEntity,
+  type UnitEntity,
   type BuildingConfig,
   type ErrorCode,
   type Entity,
@@ -36,6 +37,7 @@ export class MatchRoom {
   private elapsedSeconds = 0;
   private tick = 0;
   private readonly structures = new Map<string, BuildingEntity>();
+  private readonly recruits = new Map<string, UnitEntity>();
   private readonly avatars = new Map<string, Avatar>();
 
   constructor(
@@ -99,6 +101,9 @@ export class MatchRoom {
     for (const [id, structure] of this.structures) {
       if (structure.ownerId === playerId) this.structures.delete(id);
     }
+    for (const [id, unit] of this.recruits) {
+      if (unit.ownerId === playerId) this.recruits.delete(id);
+    }
     this.avatars.delete(playerId);
     if (!this.size) {
       this.elapsedSeconds = 0;
@@ -149,6 +154,7 @@ export class MatchRoom {
         avatar.entity = { ...avatar.entity, position: to };
       else delete avatar.target;
     }
+    this.advanceRecruits(movementSeconds);
     this.tick += 1;
   }
 
@@ -156,6 +162,7 @@ export class MatchRoom {
     const avatar = this.avatars.get(playerId);
     if (!avatar) return "INVALID_TARGET";
     if (this.elapsedSeconds >= this.match.durationSeconds) return "MATCH_ENDED";
+    if (intent.t === "hire") return this.hire(playerId, avatar, intent.unitId);
     if (intent.t === "build") return this.build(playerId, avatar, intent);
     if (intent.t === "upgrade")
       return this.upgrade(playerId, avatar, intent.entityId);
@@ -225,6 +232,14 @@ export class MatchRoom {
           Math.hypot(spawn.x - position.x, spawn.y - position.y) <=
           definition.radius + this.map.avatarRadius,
       ) ||
+      [...this.recruits.values()].some(
+        (unit) =>
+          Math.hypot(
+            unit.position.x - position.x,
+            unit.position.y - position.y,
+          ) <=
+          definition.radius + unit.radius,
+      ) ||
       [...this.avatars.values()].some(
         ({ entity }) =>
           Math.hypot(
@@ -258,6 +273,121 @@ export class MatchRoom {
       level: 1,
     });
     return null;
+  }
+
+  private hire(
+    playerId: string,
+    avatar: Avatar,
+    unitId: string,
+  ): ErrorCode | null {
+    if (avatar.entity.team !== "elves") return "ACTION_FORBIDDEN";
+    const definition = this.units.find(({ id }) => id === unitId);
+    const settings = definition?.recruitment;
+    if (!definition || !settings) return "INVALID_UNIT";
+    if (
+      [...this.recruits.values()].filter(
+        (unit) => unit.ownerId === playerId && unit.unitId === unitId,
+      ).length >= settings.maxPerPlayer ||
+      this.recruits.size >= MAX_SNAPSHOT_ENTITIES
+    )
+      return "UNIT_LIMIT_REACHED";
+    if (
+      avatar.resources.gold < definition.cost.gold ||
+      avatar.resources.wood < definition.cost.wood
+    )
+      return "INSUFFICIENT_RESOURCES";
+    const collisionMap = {
+      ...this.collisionMap,
+      avatarRadius: settings.radius,
+    };
+    const position = settings.spawnOffsets
+      .map((offset) => ({
+        x: avatar.entity.position.x + offset.x,
+        y: avatar.entity.position.y + offset.y,
+      }))
+      .find(
+        (point) =>
+          isWalkable(collisionMap, point) &&
+          canWalkSegment(collisionMap, avatar.entity.position, point) &&
+          !this.map.spawns.some(
+            (spawn) =>
+              Math.hypot(spawn.x - point.x, spawn.y - point.y) <=
+              this.map.avatarRadius + settings.radius,
+          ) &&
+          ![...this.avatars.values()].some(
+            ({ entity }) =>
+              Math.hypot(
+                entity.position.x - point.x,
+                entity.position.y - point.y,
+              ) <=
+              this.map.avatarRadius + settings.radius,
+          ) &&
+          ![...this.recruits.values()].some(
+            (unit) =>
+              Math.hypot(
+                unit.position.x - point.x,
+                unit.position.y - point.y,
+              ) <=
+              unit.radius + settings.radius,
+          ),
+      );
+    if (!position) return "SPAWN_BLOCKED";
+    const id = randomUUID();
+    avatar.resources = {
+      ...avatar.resources,
+      gold: avatar.resources.gold - definition.cost.gold,
+      wood: avatar.resources.wood - definition.cost.wood,
+    };
+    this.recruits.set(id, {
+      id,
+      ownerId: playerId,
+      team: "elves",
+      position,
+      hp: definition.hp,
+      maxHp: definition.hp,
+      unitId,
+      radius: settings.radius,
+    });
+    return null;
+  }
+
+  private advanceRecruits(deltaSeconds: number): void {
+    if (deltaSeconds <= 0) return;
+    const troll = [...this.avatars.values()].find(
+      ({ entity }) => entity.team === "troll",
+    );
+    if (!troll) return;
+    for (const [id, unit] of this.recruits) {
+      const definition = this.units.find((entry) => entry.id === unit.unitId);
+      const settings = definition?.recruitment;
+      if (!definition || !settings) continue;
+      const dx = troll.entity.position.x - unit.position.x;
+      const dy = troll.entity.position.y - unit.position.y;
+      const distance = Math.hypot(dx, dy);
+      // Also respect physical footprints if a custom config uses a small stop range.
+      const stopRange = Math.max(
+        settings.stopRangeUnits,
+        unit.radius + this.map.avatarRadius,
+      );
+      if (distance > settings.aggroRangeUnits || distance <= stopRange)
+        continue;
+      const step = Math.min(
+        distance - stopRange,
+        definition.speedUnitsPerSecond * deltaSeconds,
+      );
+      const to = {
+        x: unit.position.x + (dx / distance) * step,
+        y: unit.position.y + (dy / distance) * step,
+      };
+      if (
+        canWalkSegment(
+          { ...this.collisionMap, avatarRadius: unit.radius },
+          unit.position,
+          to,
+        )
+      )
+        this.recruits.set(id, { ...unit, position: to });
+    }
   }
 
   private upgrade(
@@ -305,6 +435,7 @@ export class MatchRoom {
       tick: this.tick,
       entities: [...this.avatars.values()].map(({ entity }) => entity),
       buildings: [...this.structures.values()],
+      units: [...this.recruits.values()],
       resources: {
         ...(this.avatars.get(playerId ?? "")?.resources ?? {
           gold: 0,
@@ -326,6 +457,7 @@ export class MatchRoom {
       match: this.match,
       map: this.map,
       buildingDefinitions: [...this.buildingDefinitions],
+      unitDefinitions: this.units.filter((unit) => unit.recruitment),
     };
   }
 }

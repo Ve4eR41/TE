@@ -80,18 +80,20 @@
         <p id="scene-status" class="scene-status">Пробуждаем лес…</p>
         <span class="map-label" aria-hidden="true">ЛЕС ДРЕВНИХ</span>
       </div>
-      <section class="construction-panel" aria-label="Строительство">
+      <section class="construction-panel" aria-label="Строительство и найм">
         <div class="construction-heading">
-          <span>УКРЕПЛЕНИЯ</span><span id="building-count">Стены: 0 / —</span>
+          <span>ЛЕСНАЯ СТРАЖА</span><span id="building-count">Стены: 0 / —</span
+          ><span id="unit-count">Стражи: 0 / —</span>
         </div>
         <div class="construction-actions">
           <button id="build-wall" type="button" disabled aria-pressed="false">
             Стена</button
-          ><button id="upgrade-wall" type="button" disabled>Улучшить</button>
+          ><button id="upgrade-wall" type="button" disabled>Улучшить</button
+          ><button id="hire-guard" type="button" disabled>Страж</button>
         </div>
         <p id="building-info">Нажмите на стену, чтобы выбрать её</p>
         <p id="action-status" role="status" aria-live="polite">
-          Выберите эльфа, чтобы строить стены.
+          Выберите эльфа, чтобы строить и нанимать стражей.
         </p>
         <p class="controls-hint">
           Клик / тап — идти

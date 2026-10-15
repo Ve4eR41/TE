@@ -32,3 +32,10 @@ export interface BuildingEntity extends Entity {
   readonly radius: number;
   readonly level: 1 | 2;
 }
+
+/** Authoritative hired unit; avatars stay in snapshot.entities. */
+export interface UnitEntity extends Entity {
+  readonly ownerId: PlayerId;
+  readonly unitId: string;
+  readonly radius: number;
+}

@@ -29,6 +29,7 @@ export type {
 export type {
   Entity,
   BuildingEntity,
+  UnitEntity,
   EntityId,
   Phase,
   PlayerId,
@@ -48,6 +49,7 @@ export {
 export {
   clientMessageSchema,
   buildingEntitySchema,
+  unitEntitySchema,
   decodeClientMessage,
   decodeServerMessage,
   entitySchema,

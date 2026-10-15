@@ -80,6 +80,27 @@ export const unitSchema = (() =>
     speedUnitsPerSecond: z.number().finite().nonnegative(),
     attackDamage: z.number().finite().nonnegative(),
     cost: costSchema,
+    recruitment: z
+      .strictObject({
+        radius: z.number().finite().positive(),
+        maxPerPlayer: z.number().int().positive().max(MAX_SNAPSHOT_ENTITIES),
+        aggroRangeUnits: z.number().finite().positive(),
+        stopRangeUnits: z.number().finite().positive(),
+        spawnOffsets: z
+          .array(
+            z.strictObject({
+              x: z.number().finite(),
+              y: z.number().finite(),
+            }),
+          )
+          .min(1)
+          .max(MAX_SNAPSHOT_ENTITIES),
+      })
+      .refine((value) => value.stopRangeUnits < value.aggroRangeUnits, {
+        path: ["stopRangeUnits"],
+        message: "Stop range must be below aggro range",
+      })
+      .optional(),
   }))();
 
 export const buildingSchema = (() =>

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { forestMapSchema } from "./map.js";
-import { matchSchema, buildingsSchema } from "./config/schemas.js";
+import { matchSchema, buildingsSchema, unitsSchema } from "./config/schemas.js";
 import {
   MAX_IDENTIFIER_LENGTH,
   MAX_MESSAGE_BYTES,
@@ -66,6 +66,13 @@ export const buildingEntitySchema = (() =>
     level: z.union([z.literal(1), z.literal(2)]),
   }))();
 
+export const unitEntitySchema = (() =>
+  entitySchema.safeExtend({
+    ownerId: idSchema,
+    unitId: idSchema,
+    radius: z.number().finite().positive(),
+  }))();
+
 export const snapshotSchema = (() =>
   z.strictObject({
     tick: z.number().int().nonnegative(),
@@ -84,6 +91,13 @@ export const snapshotSchema = (() =>
         (buildings) =>
           new Set(buildings.map(({ id }) => id)).size === buildings.length,
         "Duplicate building ID",
+      ),
+    units: z
+      .array(unitEntitySchema)
+      .max(MAX_SNAPSHOT_ENTITIES)
+      .refine(
+        (units) => new Set(units.map(({ id }) => id)).size === units.length,
+        "Duplicate unit ID",
       ),
     resources: z.strictObject({
       gold: z.number().finite().nonnegative(),
@@ -119,6 +133,7 @@ export const serverMessageSchema = (() =>
       match: matchSchema,
       map: forestMapSchema,
       buildingDefinitions: buildingsSchema,
+      unitDefinitions: unitsSchema,
     }),
     z.strictObject({
       v: z.literal(PROTOCOL_VERSION),
@@ -140,6 +155,9 @@ export const serverMessageSchema = (() =>
         "BUILD_LIMIT_REACHED",
         "MATCH_ENDED",
         "INVALID_BUILDING",
+        "INVALID_UNIT",
+        "UNIT_LIMIT_REACHED",
+        "SPAWN_BLOCKED",
         "NOT_OWNER",
         "MAX_LEVEL",
         "OUT_OF_RANGE",

@@ -1,5 +1,10 @@
 import "./styles.css";
-import type { Snapshot, Team, BuildingConfig } from "@troll-vs-elves/shared";
+import type {
+  Snapshot,
+  Team,
+  BuildingConfig,
+  UnitConfig,
+} from "@troll-vs-elves/shared";
 import { getWebSocketUrl, type GameConnection } from "./connection.js";
 import { connectWithRetry } from "./reconnecting-connection.js";
 import { createForestScene, type ForestScene } from "./forest-scene.js";
@@ -38,6 +43,8 @@ const main = (): void => {
   const wood = element("#resource-wood");
   const rage = element("#resource-rage");
   const buildButton = element<HTMLButtonElement>("#build-wall");
+  const hireButton = element<HTMLButtonElement>("#hire-guard");
+  const unitCount = element("#unit-count");
   const upgradeButton = element<HTMLButtonElement>("#upgrade-wall");
   const buildingInfo = element("#building-info");
   const actionStatus = element("#action-status");
@@ -59,6 +66,7 @@ const main = (): void => {
   let latest: Snapshot | undefined;
   let ownId = "";
   let definitions: readonly BuildingConfig[] = [];
+  let unitDefinitions: readonly UnitConfig[] = [];
   let selectedId: string | null = null;
   let buildMode = false;
   const renderActions = (): void => {
@@ -67,6 +75,17 @@ const main = (): void => {
     const available = Boolean(
       scene && latest && latest.timeLeftSeconds > 0 && own?.team === "elves",
     );
+    const guard = unitDefinitions.find(({ id }) => id === "guard");
+    const guards =
+      latest?.units.filter(({ ownerId }) => ownerId === ownId).length ?? 0;
+    hireButton.disabled =
+      !available ||
+      !guard?.recruitment ||
+      guards >= guard.recruitment.maxPerPlayer;
+    hireButton.textContent = guard
+      ? `Страж · ${guard.cost.gold} ◆ ${guard.cost.wood} ♣`
+      : "Страж";
+    unitCount.textContent = `Стражи: ${guards} / ${guard?.recruitment?.maxPerPlayer ?? "—"}`;
     buildButton.disabled = !available || !wall;
     buildButton.textContent = buildMode
       ? "Отменить · Esc"
@@ -98,10 +117,12 @@ const main = (): void => {
     scene = undefined;
     latest = undefined;
     definitions = [];
+    unitDefinitions = [];
     selectedId = null;
     buildMode = false;
     renderActions();
-    actionStatus.textContent = "Выберите эльфа, чтобы строить стены.";
+    actionStatus.textContent =
+      "Выберите эльфа, чтобы строить и нанимать стражей.";
     host.dataset.connected = "false";
     sceneStatus.hidden = false;
     sceneStatus.textContent = "Нажмите «Войти в лес», чтобы начать";
@@ -165,6 +186,7 @@ const main = (): void => {
           const current = generation;
           ownId = message.playerId;
           definitions = message.buildingDefinitions;
+          unitDefinitions = message.unitDefinitions;
           sceneStatus.textContent = "Пробуждаем лес…";
           void createForestScene(
             host,
@@ -210,6 +232,13 @@ const main = (): void => {
           wood.textContent = Math.floor(snapshot.resources.wood).toString();
           rage.textContent = Math.floor(snapshot.resources.rage).toString();
           const previous = latest;
+          if (
+            previous &&
+            snapshot.units.filter(({ ownerId }) => ownerId === ownId).length >
+              previous.units.filter(({ ownerId }) => ownerId === ownId).length
+          )
+            actionStatus.textContent =
+              "Страж нанят. Приблизьте тролля — страж пойдёт к нему. Урон пока выключен.";
           const ownCount = snapshot.buildings.filter(
             ({ ownerId }) => ownerId === ownId,
           ).length;
@@ -232,7 +261,7 @@ const main = (): void => {
               "elves"
           )
             actionStatus.textContent =
-              "Нажмите «Стена», затем выберите место рядом с героем.";
+              "«Стена» — укрепления, «Страж» — найм. Стражи пока не наносят урон.";
           latest = snapshot;
           scene?.update(snapshot);
           renderActions();
@@ -263,6 +292,10 @@ const main = (): void => {
   buildButton.addEventListener("click", () => {
     const wall = definitions.find(({ id }) => id === "wall");
     if (wall && scene) scene.setBuildMode(buildMode ? null : wall);
+  });
+  hireButton.addEventListener("click", () => {
+    scene?.setBuildMode(null);
+    connection?.sendIntent({ t: "hire", unitId: "guard" });
   });
   upgradeButton.addEventListener("click", () => {
     if (selectedId)

@@ -467,3 +467,19 @@ small {
     animation: none !important;
   }
 }
+
+@media (max-width: 600px) {
+  .construction-heading {
+    flex-wrap: wrap;
+  }
+  .construction-heading > span:first-child {
+    display: none;
+  }
+  .construction-actions {
+    gap: 4px;
+  }
+  .construction-actions button {
+    padding-inline: 3px;
+    font-size: 9px;
+  }
+}

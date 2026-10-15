@@ -6,7 +6,11 @@ const PALETTE = (() => ({
   elves: 0xb8db98,
   ring: 0xe5df9d,
 }))();
-export const createPlayerSprite = (entity: Entity, own: boolean): Container => {
+export const createPlayerSprite = (
+  entity: Entity,
+  own: boolean,
+  guard = false,
+): Container => {
   const root = new Container();
   const troll = entity.team === "troll";
   root.addChild(
@@ -65,9 +69,14 @@ export const createPlayerSprite = (entity: Entity, own: boolean): Container => {
       .lineTo(17, -1)
       .stroke({ width: 1, color: 0xe0d3a3 });
   }
+  if (guard)
+    body
+      .poly([-13, -22, 1, -22, 0, -9, -6, -3, -12, -9])
+      .fill(0xa9bd91)
+      .stroke({ width: 2, color: 0x586d55 });
   root.addChild(body);
   const label = new Text({
-    text: `${own ? "ВЫ · " : ""}${troll ? "ТРОЛЛЬ" : "ЭЛЬФ"}`,
+    text: `${guard ? (own ? "ВАШ СТРАЖ" : "СТРАЖ") : `${own ? "ВЫ · " : ""}${troll ? "ТРОЛЛЬ" : "ЭЛЬФ"}`}`,
     style: {
       fontFamily: "system-ui",
       fontSize: 11,
